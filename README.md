@@ -17,8 +17,14 @@
 ### Gradle (Kotlin DSL)
 
 ```kotlin
+repositories {
+    mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+}
+
 dependencies {
-    implementation("com.aggitech.orm:aggo-core:1.0-SNAPSHOT")
+    // Core module
+    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.0.0")
     implementation(kotlin("reflect"))
 
     // Driver JDBC (escolha o seu banco)
@@ -29,8 +35,38 @@ dependencies {
 
 // Para Spring Boot
 dependencies {
-    implementation("com.aggitech.orm:aggo-spring-boot-starter:1.0-SNAPSHOT")
+    implementation("com.github.Aggi-tech.AggORM:aggo-spring-boot-starter:1.0.0")
 }
+```
+
+### Gradle (Groovy)
+
+```groovy
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation 'com.github.Aggi-tech.AggORM:aggo-core:1.0.0'
+}
+```
+
+### Maven
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.github.Aggi-tech.AggORM</groupId>
+    <artifactId>aggo-core</artifactId>
+    <version>1.0.0</version>
+</dependency>
 ```
 
 ## Configuração
