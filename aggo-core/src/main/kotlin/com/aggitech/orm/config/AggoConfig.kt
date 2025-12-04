@@ -13,6 +13,12 @@ data class DbConfig(
 ) {
     val url: String
         get() = type.jdbcUrl(host, port, database)
+
+    val dialect: com.aggitech.orm.enums.SqlDialect
+        get() = type.dialect
+
+    val driver: String
+        get() = type.driver
 }
 
 fun interface ConnectionFactory {

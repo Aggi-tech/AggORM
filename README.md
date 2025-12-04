@@ -12,6 +12,17 @@
 - **Funções de Agregação**: Suporte a COUNT, SUM, AVG, MIN, MAX
 - **Spring Boot Integration**: Starter para integração fácil com Spring Boot
 
+## Novas Funcionalidades v1.1.0 ✨
+
+- **Connection Manager**: Pool de conexões automático e thread-safe (JDBC e R2DBC)
+- **Execução Ergonômica**: Não é mais necessário passar `Connection` ou `SqlDialect` manualmente
+- **Mapeamento Automático**: Converte resultados para entidades tipadas automaticamente
+- **Logging Integrado**: Sistema de logging plugável com suporte a console e níveis configuráveis
+- **Transações Simplificadas**: API limpa para transações com commit/rollback automático
+- **R2DBC Thread-Safe**: Pool reativo otimizado para Coroutines com `Dispatchers.IO`
+- **Entity Mapping**: Extensões `executeAsEntities()`, `executeAsEntityOrNull()`, `executeAsEntityFlow()`
+- **Streaming com Flow**: Processamento sob demanda de grandes volumes de dados
+
 ## Instalação
 
 ### Gradle (Kotlin DSL)
@@ -69,7 +80,65 @@ dependencies {
 </dependency>
 ```
 
-## Configuração
+## Quick Start (v1.1.0)
+
+### JDBC
+
+```kotlin
+// 1. Configuração inicial (uma vez no início da aplicação)
+val config = DbConfig(
+    database = "myapp",
+    host = "localhost",
+    port = 5432,
+    user = "postgres",
+    password = "password",
+    type = SupportedDatabases.POSTGRESQL
+)
+
+JdbcConnectionManager.register(config = config)
+QueryLoggerManager.enableConsoleLogging() // Opcional
+
+// 2. Use em qualquer lugar - sem passar Connection/Dialect!
+val users: List<User> = select<User> {
+    where { User::age gte 18 }
+}.executeAsEntities()
+
+// 3. Transações simplificadas
+transaction {
+    insert<User> { ... }.execute()
+    insert<Order> { ... }.execute()
+    // Commit automático ao sair do bloco
+}
+```
+
+### R2DBC (Reativo)
+
+```kotlin
+// 1. Configuração inicial
+val config = R2dbcConfig(
+    database = "myapp",
+    host = "localhost",
+    port = 5432,
+    user = "postgres",
+    password = "password",
+    type = SupportedDatabases.POSTGRESQL
+)
+
+R2dbcConnectionManager.register(config = config)
+
+// 2. Use com suspend functions
+suspend fun getUsers(): List<User> {
+    return select<User> {
+        where { User::age gte 18 }
+    }.executeAsEntities()
+}
+
+// 3. Streaming com Flow
+select<User> { ... }.executeAsEntityFlow()
+    .collect { user -> processUser(user) }
+```
+
+## Configuração (Forma Tradicional)
 
 ```kotlin
 val config = DbConfig(
@@ -825,11 +894,103 @@ data: {"user":"Jane","message":"Hi"}
 
 ```
 
+## Novas APIs v1.1.0
+
+### Connection Manager (JDBC)
+
+```kotlin
+// Registra configuração uma vez
+JdbcConnectionManager.register(config = dbConfig)
+
+// Execute queries em qualquer lugar
+val users = select<User> { ... }.execute()
+val user = select<User> { ... }.executeAsEntityOrNull()
+val userEntities = select<User> { ... }.executeAsEntities()
+```
+
+### Connection Manager (R2DBC)
+
+```kotlin
+// Registra configuração uma vez
+R2dbcConnectionManager.register(config = r2dbcConfig)
+
+// Execute queries reativas
+val users = select<User> { ... }.execute() // suspend
+val user = select<User> { ... }.executeAsEntityOrNull() // suspend
+
+// Streaming com Flow
+select<User> { ... }.executeAsEntityFlow()
+    .collect { user -> ... }
+```
+
+### Mapeamento Automático
+
+```kotlin
+// Antes (v1.0.x)
+val results: List<Map<String, Any?>> = select<User> { ... }.execute()
+val users = results.map {
+    User(
+        id = it["id"] as Long,
+        name = it["name"] as String,
+        // ...
+    )
+}
+
+// Agora (v1.1.0)
+val users: List<User> = select<User> { ... }.executeAsEntities()
+```
+
+### Logging de Queries
+
+```kotlin
+// Habilita logging
+QueryLoggerManager.enableConsoleLogging(
+    logLevel = LogLevel.DEBUG,
+    includeParameters = true,
+    includeExecutionTime = true
+)
+
+// Output:
+// [AggORM SELECT] SELECT "name", "email", "age" FROM "user" WHERE "age" >= ?
+//   Parameters: 18
+// [AggORM SELECT] Completed in 15ms - 42 row(s) affected
+```
+
+### Transações
+
+```kotlin
+// JDBC
+transaction {
+    insert<User> { ... }.execute()
+    insert<Order> { ... }.execute()
+    // Commit automático
+}
+
+// R2DBC
+suspend fun example() {
+    transaction {
+        insert<User> { ... }.execute()
+        insert<Order> { ... }.execute()
+        // Commit automático
+    }
+}
+```
+
+### Exemplos Completos
+
+Veja exemplos completos em:
+- `aggo-core/src/main/kotlin/com/aggitech/orm/examples/JdbcExample.kt`
+- `aggo-core/src/main/kotlin/com/aggitech/orm/examples/R2dbcExample.kt`
+
 ## Roadmap
 
 - [x] Suporte a R2DBC para operações reativas
 - [x] Suporte a Server-Sent Events (SSE)
 - [x] Connection pooling integrado
+- [x] Connection Manager com pool automático
+- [x] Mapeamento automático para entidades
+- [x] Sistema de logging de queries
+- [x] R2DBC thread-safe com Coroutines
 - [ ] Adaptadores para Spring WebFlux e Ktor
 - [ ] Suporte a migrations
 - [ ] Geração automática de schema

@@ -45,4 +45,10 @@ data class R2dbcConfig(
             "$baseUrl?$queryString"
         }
     }
+
+    /**
+     * SqlDialect baseado no tipo de banco
+     */
+    val dialect: com.aggitech.orm.enums.SqlDialect
+        get() = type.dialect
 }
