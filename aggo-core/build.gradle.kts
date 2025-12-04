@@ -10,6 +10,8 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
+    withSourcesJar()
+    withJavadocJar()
 }
 
 dependencies {
@@ -34,7 +36,7 @@ publishing {
             pom {
                 name.set("AggORM Core")
                 description.set("Type-safe ORM framework for Kotlin with declarative DSL")
-                url.set("https://github.com/Aggi-tech/AggORM")
+                url.set("https://github.com/aggi-tech/aggorm")
 
                 licenses {
                     license {
@@ -52,9 +54,9 @@ publishing {
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/Aggi-tech/AggORM.git")
-                    developerConnection.set("scm:git:ssh://github.com/Aggi-tech/AggORM.git")
-                    url.set("https://github.com/Aggi-tech/AggORM")
+                    connection.set("scm:git:git://github.com/aggi-tech/aggorm.git")
+                    developerConnection.set("scm:git:ssh://github.com/aggi-tech/aggorm.git")
+                    url.set("https://github.com/aggi-tech/aggorm")
                 }
             }
         }
