@@ -3,8 +3,8 @@ plugins {
     kotlin("plugin.spring") version "2.2.20" apply false
 }
 
-group = "io.github.aggi-tech"
-version = "1.0.5"
+group = "com.github.aggi-tech"
+version = "1.0.6"
 
 allprojects {
     repositories {
