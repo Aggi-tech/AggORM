@@ -15,7 +15,9 @@ java {
 dependencies {
     implementation(kotlin("reflect"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactive:1.9.0")
     implementation("io.r2dbc:r2dbc-spi:1.0.0.RELEASE")
+    implementation("io.r2dbc:r2dbc-pool:1.0.0.RELEASE")
 
     testImplementation(kotlin("test"))
 }

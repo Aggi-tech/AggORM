@@ -5,7 +5,7 @@ import kotlin.reflect.KClass
 /**
  * Exceção base para todas as exceções do ORM
  */
-sealed class OrmException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class OrmException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * Exceção lançada quando validação de entidade falha
