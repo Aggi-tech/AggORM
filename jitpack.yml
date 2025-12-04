@@ -1,7 +1,4 @@
 jdk:
   - openjdk21
-before_install:
-  - sdk install java 21.0.1-open || true
-  - sdk use java 21.0.1-open
 install:
-  - ./gradlew clean build publishToMavenLocal -x test
+  - ./gradlew clean build -x test
