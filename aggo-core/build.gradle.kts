@@ -3,8 +3,8 @@ plugins {
     `maven-publish`
 }
 
-group = "com.aggitech.orm"
-version = "1.0.1"
+group = "io.github.aggi-tech"
+version = "1.0.2"
 
 java {
     toolchain {
