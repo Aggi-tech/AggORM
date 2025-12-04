@@ -1,0 +1,2 @@
+com.aggitech.orm.spring.autoconfigure.AggoOrmAutoConfiguration
+com.aggitech.orm.spring.autoconfigure.AggoDataSourceConfiguration

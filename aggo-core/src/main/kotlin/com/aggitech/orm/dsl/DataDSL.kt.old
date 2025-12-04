@@ -1,0 +1,632 @@
+package com.aggitech.orm.dsl
+
+import com.aggitech.orm.config.ConnectionFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.ResultSet
+import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.memberProperties
+import kotlin.reflect.full.primaryConstructor
+
+/**
+ * DSL declarativa para operações de banco de dados com suporte a JDBC e Coroutines
+ */
+
+// ==================== Column Reference ====================
+
+/**
+ * Representa uma coluna de uma entidade
+ */
+data class ColumnRef<T : Any, R>(
+    val entityClass: KClass<T>,
+    val property: KProperty1<T, R>,
+    val alias: String? = null
+) {
+    val columnName: String get() = property.name
+    val fullColumnName: String
+        get() {
+            val tableName = entityClass.simpleName!!.lowercase()
+            return "$tableName.$columnName"
+        }
+
+    fun `as`(alias: String): ColumnRef<T, R> = copy(alias = alias)
+}
+
+// ==================== Join Types ====================
+
+enum class JoinType {
+    INNER, LEFT, RIGHT, FULL
+}
+
+data class JoinClause(
+    val type: JoinType,
+    val targetTable: String,
+    val condition: String,
+    val parameters: List<Any?>
+)
+
+// ==================== Select DSL ====================
+
+@DslMarker
+annotation class QueryDsl
+
+@QueryDsl
+class SelectBuilder {
+    internal val columns = mutableListOf<ColumnRef<*, *>>()
+    internal var distinct: Boolean = false
+
+    fun <T : Any, R> column(property: KProperty1<T, R>) {
+        @Suppress("UNCHECKED_CAST")
+        columns.add(ColumnRef(property.returnType.classifier as KClass<T>, property))
+    }
+
+    operator fun <T : Any, R> KProperty1<T, R>.unaryPlus() {
+        column(this)
+    }
+
+    fun distinct() {
+        distinct = true
+    }
+
+    fun all() {
+        // SELECT * será usado se nenhuma coluna for especificada
+    }
+}
+
+@QueryDsl
+class WhereBuilder {
+    internal val conditions = mutableListOf<String>()
+    internal val parameters = mutableListOf<Any?>()
+
+    infix fun <T : Any, R> KProperty1<T, R>.eq(value: R) {
+        conditions.add("${this.name} = ?")
+        parameters.add(value)
+    }
+
+    infix fun <T : Any, R> KProperty1<T, R>.ne(value: R) {
+        conditions.add("${this.name} != ?")
+        parameters.add(value)
+    }
+
+    infix fun <T : Any, R : Comparable<R>> KProperty1<T, R>.gt(value: R) {
+        conditions.add("${this.name} > ?")
+        parameters.add(value)
+    }
+
+    infix fun <T : Any, R : Comparable<R>> KProperty1<T, R>.gte(value: R) {
+        conditions.add("${this.name} >= ?")
+        parameters.add(value)
+    }
+
+    infix fun <T : Any, R : Comparable<R>> KProperty1<T, R>.lt(value: R) {
+        conditions.add("${this.name} < ?")
+        parameters.add(value)
+    }
+
+    infix fun <T : Any, R : Comparable<R>> KProperty1<T, R>.lte(value: R) {
+        conditions.add("${this.name} <= ?")
+        parameters.add(value)
+    }
+
+    infix fun <T : Any> KProperty1<T, String>.like(pattern: String) {
+        conditions.add("${this.name} LIKE ?")
+        parameters.add(pattern)
+    }
+
+    infix fun <T : Any, R> KProperty1<T, R>.isIn(values: List<R>) {
+        val placeholders = values.joinToString(", ") { "?" }
+        conditions.add("${this.name} IN ($1placeholders)")
+        parameters.addAll(values)
+    }
+
+    fun <T : Any, R> KProperty1<T, R>.isNull() {
+        conditions.add("${this.name} IS NULL")
+    }
+
+    fun <T : Any, R> KProperty1<T, R>.isNotNull() {
+        conditions.add("${this.name} IS NOT NULL")
+    }
+
+    infix fun String.and(other: String) {
+        // Para combinar condições customizadas
+    }
+
+    fun raw(condition: String, vararg params: Any?) {
+        conditions.add(condition)
+        parameters.addAll(params)
+    }
+}
+
+@QueryDsl
+class JoinBuilder(internal val type: JoinType) {
+    internal var targetClass: KClass<*>? = null
+    internal var onCondition: String? = null
+    internal val parameters = mutableListOf<Any?>()
+
+    fun <T : Any> table(entityClass: KClass<T>) {
+        targetClass = entityClass
+    }
+
+    fun on(condition: String, vararg params: Any?) {
+        onCondition = condition
+        parameters.addAll(params)
+    }
+
+    fun <T : Any, R, S : Any, V> on(
+        leftProperty: KProperty1<T, R>,
+        rightProperty: KProperty1<S, V>
+    ) {
+        onCondition = "${leftProperty.name} = ${rightProperty.name}"
+    }
+}
+
+@QueryDsl
+class OrderByBuilder {
+    internal val orderings = mutableListOf<Pair<String, String>>()
+
+    fun <T : Any, R> KProperty1<T, R>.asc() {
+        orderings.add(this.name to "ASC")
+    }
+
+    fun <T : Any, R> KProperty1<T, R>.desc() {
+        orderings.add(this.name to "DESC")
+    }
+}
+
+@QueryDsl
+class QueryBuilder<T : Any>(
+    private val connectionFactory: ConnectionFactory
+) {
+    internal var fromClass: KClass<T>? = null
+    internal val selectBuilder = SelectBuilder()
+    internal val whereBuilder = WhereBuilder()
+    internal val joins = mutableListOf<JoinClause>()
+    internal val orderByBuilder = OrderByBuilder()
+    internal var limitValue: Int? = null
+    internal var offsetValue: Int? = null
+
+    fun from(entityClass: KClass<T>) {
+        fromClass = entityClass
+    }
+
+    fun select(block: SelectBuilder.() -> Unit) {
+        selectBuilder.apply(block)
+    }
+
+    fun where(block: WhereBuilder.() -> Unit) {
+        whereBuilder.apply(block)
+    }
+
+    fun innerJoin(block: JoinBuilder.() -> Unit) {
+        val builder = JoinBuilder(JoinType.INNER).apply(block)
+        joins.add(createJoinClause(builder))
+    }
+
+    fun leftJoin(block: JoinBuilder.() -> Unit) {
+        val builder = JoinBuilder(JoinType.LEFT).apply(block)
+        joins.add(createJoinClause(builder))
+    }
+
+    fun rightJoin(block: JoinBuilder.() -> Unit) {
+        val builder = JoinBuilder(JoinType.RIGHT).apply(block)
+        joins.add(createJoinClause(builder))
+    }
+
+    fun fullJoin(block: JoinBuilder.() -> Unit) {
+        val builder = JoinBuilder(JoinType.FULL).apply(block)
+        joins.add(createJoinClause(builder))
+    }
+
+    fun orderBy(block: OrderByBuilder.() -> Unit) {
+        orderByBuilder.apply(block)
+    }
+
+    fun limit(count: Int) {
+        limitValue = count
+    }
+
+    fun offset(count: Int) {
+        offsetValue = count
+    }
+
+    private fun createJoinClause(builder: JoinBuilder): JoinClause {
+        val targetTable = builder.targetClass?.simpleName?.lowercase()
+            ?: throw IllegalStateException("Join target table not specified")
+        val condition = builder.onCondition
+            ?: throw IllegalStateException("Join condition not specified")
+
+        return JoinClause(
+            type = builder.type,
+            targetTable = targetTable,
+            condition = condition,
+            parameters = builder.parameters
+        )
+    }
+
+    /**
+     * Executa a query de forma assíncrona usando coroutines
+     */
+    suspend fun execute(): List<T> = withContext(Dispatchers.IO) {
+        connectionFactory.open().use { connection ->
+            val sql = buildSql()
+            connection.prepareStatement(sql).use { statement ->
+                setParameters(statement)
+                val resultSet = statement.executeQuery()
+                mapResultSet(resultSet)
+            }
+        }
+    }
+
+    /**
+     * Executa a query e retorna apenas o primeiro resultado
+     */
+    suspend fun executeFirst(): T? = withContext(Dispatchers.IO) {
+        connectionFactory.open().use { connection ->
+            val sql = buildSql()
+            connection.prepareStatement(sql).use { statement ->
+                setParameters(statement)
+                val resultSet = statement.executeQuery()
+                if (resultSet.next()) {
+                    mapSingleRow(resultSet)
+                } else {
+                    null
+                }
+            }
+        }
+    }
+
+    /**
+     * Retorna o SQL gerado (útil para debug)
+     */
+    fun toSql(): String = buildSql()
+
+    private fun buildSql(): String {
+        val tableName = fromClass?.simpleName?.lowercase()
+            ?: throw IllegalStateException("FROM clause not specified")
+
+        val sql = StringBuilder()
+
+        // SELECT clause
+        sql.append("SELECT ")
+        if (selectBuilder.distinct) {
+            sql.append("DISTINCT ")
+        }
+
+        if (selectBuilder.columns.isEmpty()) {
+            sql.append("*")
+        } else {
+            sql.append(selectBuilder.columns.joinToString(", ") { col ->
+                if (col.alias != null) {
+                    "${col.fullColumnName} AS ${col.alias}"
+                } else {
+                    col.columnName
+                }
+            })
+        }
+
+        // FROM clause
+        sql.append(" FROM ").append(tableName)
+
+        // JOIN clauses
+        joins.forEach { join ->
+            sql.append(" ${join.type} JOIN ${join.targetTable} ON ${join.condition}")
+        }
+
+        // WHERE clause
+        if (whereBuilder.conditions.isNotEmpty()) {
+            sql.append(" WHERE ")
+            sql.append(whereBuilder.conditions.joinToString(" AND "))
+        }
+
+        // ORDER BY clause
+        if (orderByBuilder.orderings.isNotEmpty()) {
+            sql.append(" ORDER BY ")
+            sql.append(orderByBuilder.orderings.joinToString(", ") { (col, dir) ->
+                "$col $dir"
+            })
+        }
+
+        // LIMIT clause
+        if (limitValue != null) {
+            sql.append(" LIMIT ").append(limitValue)
+        }
+
+        // OFFSET clause
+        if (offsetValue != null) {
+            sql.append(" OFFSET ").append(offsetValue)
+        }
+
+        return sql.toString()
+    }
+
+    private fun setParameters(statement: PreparedStatement) {
+        var index = 1
+
+        // Join parameters
+        joins.forEach { join ->
+            join.parameters.forEach { param ->
+                statement.setObject(index++, param)
+            }
+        }
+
+        // Where parameters
+        whereBuilder.parameters.forEach { param ->
+            statement.setObject(index++, param)
+        }
+    }
+
+    private fun mapResultSet(resultSet: ResultSet): List<T> {
+        val results = mutableListOf<T>()
+        while (resultSet.next()) {
+            results.add(mapSingleRow(resultSet))
+        }
+        return results
+    }
+
+    private fun mapSingleRow(resultSet: ResultSet): T {
+        val entityClass = fromClass ?: throw IllegalStateException("FROM class not specified")
+        val constructor = entityClass.primaryConstructor
+            ?: throw IllegalStateException("Entity must have a primary constructor")
+
+        val args = constructor.parameters.associateWith { param ->
+            val columnName = param.name ?: throw IllegalStateException("Parameter name not found")
+            resultSet.getObject(columnName)
+        }
+
+        return constructor.callBy(args)
+    }
+}
+
+// ==================== Insert DSL ====================
+
+@QueryDsl
+class InsertBuilder<T : Any>(
+    private val connectionFactory: ConnectionFactory
+) {
+    internal var intoClass: KClass<T>? = null
+    internal val values = mutableMapOf<String, Any?>()
+
+    fun into(entityClass: KClass<T>) {
+        intoClass = entityClass
+    }
+
+    fun values(entity: T) {
+        entity::class.memberProperties.forEach { prop ->
+            if (prop.name != "id") {
+                values[prop.name] = prop.getter.call(entity)
+            }
+        }
+    }
+
+    fun set(block: InsertValueBuilder<T>.() -> Unit) {
+        InsertValueBuilder<T>().apply(block).values.forEach { (key, value) ->
+            values[key] = value
+        }
+    }
+
+    suspend fun execute(): Long = withContext(Dispatchers.IO) {
+        connectionFactory.open().use { connection ->
+            val sql = buildSql()
+            connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS).use { statement ->
+                setParameters(statement)
+                statement.executeUpdate()
+
+                val generatedKeys = statement.generatedKeys
+                if (generatedKeys.next()) {
+                    generatedKeys.getLong(1)
+                } else {
+                    throw IllegalStateException("No ID returned after insert")
+                }
+            }
+        }
+    }
+
+    private fun buildSql(): String {
+        val tableName = intoClass?.simpleName?.lowercase()
+            ?: throw IllegalStateException("INTO clause not specified")
+
+        val columns = values.keys.joinToString(", ")
+        val placeholders = values.keys.joinToString(", ") { "?" }
+
+        return "INSERT INTO $tableName ($columns) VALUES ($placeholders)"
+    }
+
+    private fun setParameters(statement: PreparedStatement) {
+        values.values.forEachIndexed { index, value ->
+            statement.setObject(index + 1, value)
+        }
+    }
+}
+
+@QueryDsl
+class InsertValueBuilder<T : Any> {
+    internal val values = mutableMapOf<String, Any?>()
+
+    infix fun <R> KProperty1<T, R>.to(value: R) {
+        values[this.name] = value
+    }
+}
+
+// ==================== Update DSL ====================
+
+@QueryDsl
+class UpdateBuilder<T : Any>(
+    private val connectionFactory: ConnectionFactory
+) {
+    internal var tableClass: KClass<T>? = null
+    internal val updates = mutableMapOf<String, Any?>()
+    internal val whereBuilder = WhereBuilder()
+
+    fun table(entityClass: KClass<T>) {
+        tableClass = entityClass
+    }
+
+    fun set(block: UpdateValueBuilder<T>.() -> Unit) {
+        UpdateValueBuilder<T>().apply(block).updates.forEach { (key, value) ->
+            updates[key] = value
+        }
+    }
+
+    fun where(block: WhereBuilder.() -> Unit) {
+        whereBuilder.apply(block)
+    }
+
+    suspend fun execute(): Int = withContext(Dispatchers.IO) {
+        connectionFactory.open().use { connection ->
+            val sql = buildSql()
+            connection.prepareStatement(sql).use { statement ->
+                setParameters(statement)
+                statement.executeUpdate()
+            }
+        }
+    }
+
+    private fun buildSql(): String {
+        val tableName = tableClass?.simpleName?.lowercase()
+            ?: throw IllegalStateException("Table not specified")
+
+        val setClause = updates.keys.joinToString(", ") { "$it = ?" }
+        val sql = StringBuilder("UPDATE $tableName SET $setClause")
+
+        if (whereBuilder.conditions.isNotEmpty()) {
+            sql.append(" WHERE ")
+            sql.append(whereBuilder.conditions.joinToString(" AND "))
+        }
+
+        return sql.toString()
+    }
+
+    private fun setParameters(statement: PreparedStatement) {
+        var index = 1
+        updates.values.forEach { value ->
+            statement.setObject(index++, value)
+        }
+        whereBuilder.parameters.forEach { param ->
+            statement.setObject(index++, param)
+        }
+    }
+}
+
+@QueryDsl
+class UpdateValueBuilder<T : Any> {
+    internal val updates = mutableMapOf<String, Any?>()
+
+    infix fun <R> KProperty1<T, R>.to(value: R) {
+        updates[this.name] = value
+    }
+}
+
+// ==================== Delete DSL ====================
+
+@QueryDsl
+class DeleteBuilder<T : Any>(
+    private val connectionFactory: ConnectionFactory
+) {
+    internal var fromClass: KClass<T>? = null
+    internal val whereBuilder = WhereBuilder()
+
+    fun from(entityClass: KClass<T>) {
+        fromClass = entityClass
+    }
+
+    fun where(block: WhereBuilder.() -> Unit) {
+        whereBuilder.apply(block)
+    }
+
+    suspend fun execute(): Int = withContext(Dispatchers.IO) {
+        connectionFactory.open().use { connection ->
+            val sql = buildSql()
+            connection.prepareStatement(sql).use { statement ->
+                setParameters(statement)
+                statement.executeUpdate()
+            }
+        }
+    }
+
+    private fun buildSql(): String {
+        val tableName = fromClass?.simpleName?.lowercase()
+            ?: throw IllegalStateException("FROM clause not specified")
+
+        val sql = StringBuilder("DELETE FROM $tableName")
+
+        if (whereBuilder.conditions.isNotEmpty()) {
+            sql.append(" WHERE ")
+            sql.append(whereBuilder.conditions.joinToString(" AND "))
+        }
+
+        return sql.toString()
+    }
+
+    private fun setParameters(statement: PreparedStatement) {
+        whereBuilder.parameters.forEachIndexed { index, param ->
+            statement.setObject(index + 1, param)
+        }
+    }
+}
+
+// ==================== Transaction Support ====================
+
+/**
+ * Executa uma transação de forma assíncrona
+ */
+suspend fun <R> transaction(
+    connectionFactory: ConnectionFactory,
+    block: suspend (Connection) -> R
+): R = withContext(Dispatchers.IO) {
+    connectionFactory.open().use { connection ->
+        connection.autoCommit = false
+        try {
+            val result = block(connection)
+            connection.commit()
+            result
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
+// ==================== DSL Entry Points ====================
+
+/**
+ * Inicia uma query SELECT declarativa
+ */
+inline fun <reified T : Any> query(
+    connectionFactory: ConnectionFactory,
+    block: QueryBuilder<T>.() -> Unit
+): QueryBuilder<T> {
+    return QueryBuilder<T>(connectionFactory).apply(block)
+}
+
+/**
+ * Inicia uma operação de INSERT declarativa
+ */
+inline fun <reified T : Any> insert(
+    connectionFactory: ConnectionFactory,
+    block: InsertBuilder<T>.() -> Unit
+): InsertBuilder<T> {
+    return InsertBuilder<T>(connectionFactory).apply(block)
+}
+
+/**
+ * Inicia uma operação de UPDATE declarativa
+ */
+inline fun <reified T : Any> update(
+    connectionFactory: ConnectionFactory,
+    block: UpdateBuilder<T>.() -> Unit
+): UpdateBuilder<T> {
+    return UpdateBuilder<T>(connectionFactory).apply(block)
+}
+
+/**
+ * Inicia uma operação de DELETE declarativa
+ */
+inline fun <reified T : Any> delete(
+    connectionFactory: ConnectionFactory,
+    block: DeleteBuilder<T>.() -> Unit
+): DeleteBuilder<T> {
+    return DeleteBuilder<T>(connectionFactory).apply(block)
+}
