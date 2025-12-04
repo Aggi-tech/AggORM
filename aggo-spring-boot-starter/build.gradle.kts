@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.aggi-tech"
-version = "1.0.3"
+version = "1.0.4"
 
 java {
     toolchain {
