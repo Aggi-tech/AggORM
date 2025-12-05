@@ -5,3 +5,4 @@ rootProject.name = "aggo-orm"
 
 include("aggo-core")
 include("aggo-spring-boot-starter")
+include("aggo-migrations")
