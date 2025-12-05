@@ -5,14 +5,15 @@ import io.r2dbc.spi.Connection
 import io.r2dbc.spi.ConnectionFactory
 import io.r2dbc.spi.ConnectionFactories
 import io.r2dbc.spi.ConnectionFactoryOptions
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.reactive.awaitSingle
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeout
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Pool de conexões R2DBC com gerenciamento via Coroutines
@@ -53,7 +54,10 @@ class R2dbcConnectionPool(
     private val activeConnections = ConcurrentHashMap<Connection, PooledConnection>()
     private val totalConnections = AtomicInteger(0)
     private val mutex = Mutex()
-    private var closed = false
+    private val closed = AtomicBoolean(false)
+
+    // Dispatcher para operações I/O bound
+    private val ioDispatcher = Dispatchers.IO
 
     init {
         // Cria ConnectionFactory
@@ -93,15 +97,15 @@ class R2dbcConnectionPool(
      * @return Conexão pronta para uso
      * @throws R2dbcException.ConnectionException se não conseguir adquirir
      */
-    suspend fun acquire(): Connection {
-        if (closed) {
+    suspend fun acquire(): Connection = withContext(ioDispatcher) {
+        if (closed.get()) {
             throw R2dbcException.ConnectionException(
                 "Connection pool is closed",
                 null
             )
         }
 
-        return try {
+        try {
             withTimeout(poolConfig.maxAcquireTime.toMillis()) {
                 acquireInternal()
             }
@@ -153,7 +157,7 @@ class R2dbcConnectionPool(
      *
      * @param connection Conexão a ser devolvida
      */
-    suspend fun release(connection: Connection) {
+    suspend fun release(connection: Connection) = withContext(ioDispatcher) {
         val pooledConn = activeConnections.remove(connection)
 
         if (pooledConn != null) {
@@ -239,12 +243,10 @@ class R2dbcConnectionPool(
     /**
      * Fecha o pool e todas as conexões
      */
-    suspend fun close() {
-        if (closed) return
+    suspend fun close() = withContext(ioDispatcher) {
+        if (closed.getAndSet(true)) return@withContext
 
         mutex.withLock {
-            closed = true
-
             // Fecha conexões disponíveis
             availableConnections.close()
             for (pooledConn in availableConnections) {
