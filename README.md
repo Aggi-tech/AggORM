@@ -35,7 +35,7 @@ repositories {
 
 dependencies {
     // Core module
-    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.0.1")
+    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.1.0")
     implementation(kotlin("reflect"))
 
     // Driver JDBC (escolha o seu banco)
@@ -46,7 +46,7 @@ dependencies {
 
 // Para Spring Boot
 dependencies {
-    implementation("com.github.Aggi-tech.AggORM:aggo-spring-boot-starter:1.0.1")
+    implementation("com.github.Aggi-tech.AggORM:aggo-spring-boot-starter:1.1.0")
 }
 ```
 
@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.Aggi-tech.AggORM:aggo-core:1.0.1'
+    implementation 'com.github.Aggi-tech.AggORM:aggo-core:1.1.0'
 }
 ```
 
@@ -76,7 +76,7 @@ dependencies {
 <dependency>
     <groupId>com.github.Aggi-tech.AggORM</groupId>
     <artifactId>aggo-core</artifactId>
-    <version>1.0.1</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
@@ -465,7 +465,7 @@ O AggORM oferece suporte completo a **R2DBC** usando **Kotlin Coroutines**, prop
 
 ```kotlin
 dependencies {
-    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.0.1")
+    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.1.0")
     implementation(kotlin("reflect"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
@@ -682,7 +682,7 @@ O AggORM oferece suporte completo a **Server-Sent Events (SSE)** para streaming 
 
 ```kotlin
 dependencies {
-    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.0.1")
+    implementation("com.github.Aggi-tech.AggORM:aggo-core:1.1.0")
     implementation(kotlin("reflect"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("io.r2dbc:r2dbc-postgresql:1.0.5.RELEASE")
