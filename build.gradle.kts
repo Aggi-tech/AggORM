@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.aggitech.orm"
-version = "1.5.2"
+version = "1.6.0"
 
 allprojects {
     repositories {
