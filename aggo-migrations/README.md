@@ -2,12 +2,12 @@
 
 Sistema completo de migrations para o AggORM, permitindo gerenciamento type-safe de mudanças de schema de banco de dados.
 
-## Status da Implementação
+## Status da Implementacao
 
-✅ **Phase 6: History Tracking** - Sistema de rastreamento de migrations aplicadas
-✅ **Phase 4: SQL Rendering** - Geração de SQL específico para PostgreSQL
-✅ **Phase 5: Migration Executor** - Execução de migrations com suporte a transações
-✅ **Phase 7: Code Generator** - Geração automática de código Kotlin para migrations
+Phase 6: History Tracking - Sistema de rastreamento de migrations aplicadas
+Phase 4: SQL Rendering - Geracao de SQL especifico para PostgreSQL
+Phase 5: Migration Executor - Execucao de migrations com suporte a transacoes
+Phase 7: Code Generator - Geracao automatica de codigo Kotlin para migrations
 
 ## Estrutura do Módulo
 
@@ -111,13 +111,20 @@ Geração automática de arquivos Kotlin de migration:
 ### 1. Criar uma Migration Manualmente
 
 ```kotlin
+data class User(
+    val id: Long,
+    val name: String,
+    val email: String,
+    val createdAt: LocalDateTime
+)
+
 class V001_20231201_CreateUsers : Migration() {
     override fun up() {
         createTable("users") {
-            column { bigInteger("id").primaryKey().autoIncrement() }
-            column { varchar("name", 100).notNull() }
-            column { varchar("email", 255).notNull().unique() }
-            column { timestamp("created_at").notNull().default("CURRENT_TIMESTAMP") }
+            column { bigInteger(User::id).primaryKey().autoIncrement() }
+            column { varchar(User::name, 100).notNull() }
+            column { varchar(User::email, 255).notNull().unique() }
+            column { timestamp(User::createdAt).notNull().default("CURRENT_TIMESTAMP") }
         }
 
         createIndex("users", listOf("email"), unique = true)
@@ -154,6 +161,12 @@ if (result.success) {
 ### 3. Gerar Migration Automaticamente
 
 ```kotlin
+data class Product(
+    val id: Long,
+    val name: String,
+    val price: BigDecimal
+)
+
 MigrationGeneratorCli.createMigration(
     description = "CreateProductsTable",
     migrationOutputPath = "src/main/kotlin/db/migrations"
@@ -162,9 +175,9 @@ MigrationGeneratorCli.createMigration(
         description = "Create products table",
         upCode = """
             createTable("products") {
-                column { bigInteger("id").primaryKey().autoIncrement() }
-                column { varchar("name", 200).notNull() }
-                column { decimal("price", 10, 2).notNull() }
+                column { bigInteger(Product::id).primaryKey().autoIncrement() }
+                column { varchar(Product::name, 200).notNull() }
+                column { decimal(Product::price, 10, 2).notNull() }
             }
         """.trimIndent(),
         downCode = """dropTable("products")"""
@@ -229,19 +242,19 @@ JDBC completamente implementado, R2DBC como interface futura.
 ## Limitações e TODOs
 
 ### Implementado nesta branch:
-✅ History tracking completo
-✅ SQL rendering para PostgreSQL
-✅ Migration executor com transações
-✅ Code generator básico
-✅ Testes com TestContainers
+- History tracking completo
+- SQL rendering para PostgreSQL
+- Migration executor com transações
+- Code generator básico
+- Testes com TestContainers
 
 ### Não implementado (fora do escopo):
-❌ R2DBC executor (interface criada, implementação pendente)
-❌ MySQL renderer (factory lança exceção)
-❌ Scanner com classpath scanning (somente lista explícita)
-❌ Integration com detector/scanner de entidades (Phase 2-3 da feature/migrations-system branch)
-❌ Gradle plugin (Phase 8)
-❌ Spring Boot auto-configuration (Phase 9)
+- R2DBC executor (interface criada, implementação pendente)
+- MySQL renderer (factory lança exceção)
+- Scanner com classpath scanning (somente lista explícita)
+- Integration com detector/scanner de entidades (Phase 2-3 da feature/migrations-system branch)
+- Gradle plugin (Phase 8)
+- Spring Boot auto-configuration (Phase 9)
 
 ## Dependências
 
