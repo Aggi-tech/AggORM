@@ -207,3 +207,14 @@ sealed class MigrationOperation {
         override fun toSql(dialect: SqlDialect): List<String> = listOf(sql)
     }
 }
+
+/**
+ * Chainable extension methods for ColumnDefinition
+ * Allows fluent API: uuid(User::id).primaryKey().notNull()
+ */
+fun ColumnDefinition.notNull(): ColumnDefinition = copy(nullable = false)
+fun ColumnDefinition.nullable(): ColumnDefinition = copy(nullable = true)
+fun ColumnDefinition.unique(): ColumnDefinition = copy(unique = true)
+fun ColumnDefinition.primaryKey(): ColumnDefinition = copy(primaryKey = true)
+fun ColumnDefinition.autoIncrement(): ColumnDefinition = copy(autoIncrement = true)
+fun ColumnDefinition.default(value: String): ColumnDefinition = copy(defaultValue = value)
