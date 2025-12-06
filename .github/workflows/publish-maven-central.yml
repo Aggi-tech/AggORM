@@ -35,39 +35,46 @@ jobs:
 
       - name: Create deployment bundle
         run: |
-          cd /tmp
-          mkdir -p aggorm-bundle/com/aggitech/orm/{aggo-core,aggo-migrations,aggo-spring-boot-starter}/${{ github.ref_name }}
-
           # Extract version from tag (remove 'v' prefix)
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
+          echo "Building bundle for version: $VERSION"
+
+          cd /tmp
+
+          # Create directories with correct version (without 'v' prefix)
+          for module in aggo-core aggo-migrations aggo-spring-boot-starter; do
+            mkdir -p "aggorm-bundle/com/aggitech/orm/$module/$VERSION"
+          done
 
           for module in aggo-core aggo-migrations aggo-spring-boot-starter; do
             src=~/.m2/repository/com/aggitech/orm/$module/$VERSION
             dest=/tmp/aggorm-bundle/com/aggitech/orm/$module/$VERSION
 
+            echo "Copying $module artifacts from $src to $dest"
+
             # Copy artifacts
-            cp $src/$module-$VERSION.jar $dest/
-            cp $src/$module-$VERSION.pom $dest/
-            cp $src/$module-$VERSION-sources.jar $dest/
-            cp $src/$module-$VERSION-javadoc.jar $dest/
-            cp $src/$module-$VERSION.jar.asc $dest/
-            cp $src/$module-$VERSION.pom.asc $dest/
-            cp $src/$module-$VERSION-sources.jar.asc $dest/
-            cp $src/$module-$VERSION-javadoc.jar.asc $dest/
+            cp "$src/$module-$VERSION.jar" "$dest/"
+            cp "$src/$module-$VERSION.pom" "$dest/"
+            cp "$src/$module-$VERSION-sources.jar" "$dest/"
+            cp "$src/$module-$VERSION-javadoc.jar" "$dest/"
+            cp "$src/$module-$VERSION.jar.asc" "$dest/"
+            cp "$src/$module-$VERSION.pom.asc" "$dest/"
+            cp "$src/$module-$VERSION-sources.jar.asc" "$dest/"
+            cp "$src/$module-$VERSION-javadoc.jar.asc" "$dest/"
 
             # Generate checksums
-            cd $dest
-            for file in $module-$VERSION.jar $module-$VERSION.pom $module-$VERSION-sources.jar $module-$VERSION-javadoc.jar; do
-              md5sum $file | awk '{print $1}' > $file.md5
-              sha1sum $file | awk '{print $1}' > $file.sha1
+            cd "$dest"
+            for file in "$module-$VERSION.jar" "$module-$VERSION.pom" "$module-$VERSION-sources.jar" "$module-$VERSION-javadoc.jar"; do
+              md5sum "$file" | awk '{print $1}' > "$file.md5"
+              sha1sum "$file" | awk '{print $1}' > "$file.sha1"
             done
             cd /tmp
           done
 
           cd /tmp/aggorm-bundle
-          zip -r /tmp/aggorm-$VERSION.zip com/
-          ls -lh /tmp/aggorm-$VERSION.zip
+          zip -r "/tmp/aggorm-$VERSION.zip" com/
+          ls -lh "/tmp/aggorm-$VERSION.zip"
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
@@ -129,9 +136,9 @@ jobs:
 
             ```kotlin
             dependencies {
-                implementation("com.aggitech.orm:aggo-core:${{ github.ref_name }}")
-                implementation("com.aggitech.orm:aggo-migrations:${{ github.ref_name }}")
-                implementation("com.aggitech.orm:aggo-spring-boot-starter:${{ github.ref_name }}")
+                implementation("com.aggitech.orm:aggo-core:${GITHUB_REF_NAME#v}")
+                implementation("com.aggitech.orm:aggo-migrations:${GITHUB_REF_NAME#v}")
+                implementation("com.aggitech.orm:aggo-spring-boot-starter:${GITHUB_REF_NAME#v}")
             }
             ```
 
