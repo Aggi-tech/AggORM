@@ -514,10 +514,10 @@ class InsertQueryBuilder<T : Any>(private val entityClass: KClass<T>) {
     private val values = mutableMapOf<String, Any?>()
 
     /**
-     * Define um valor para uma coluna
+     * Define um valor para uma coluna (converte para snake_case automaticamente)
      */
     infix fun <R> KProperty1<T, R>.to(value: R?) {
-        values[this.name] = value
+        values[com.aggitech.orm.core.metadata.EntityRegistry.resolveColumn(this)] = value
     }
 
     /**
@@ -552,10 +552,10 @@ class UpdateQueryBuilder<T : Any>(override val entityClass: KClass<T>) : Whereab
     override var wherePredicate: Predicate? = null
 
     /**
-     * Define um valor para atualizar
+     * Define um valor para atualizar (converte para snake_case automaticamente)
      */
     infix fun <R> KProperty1<T, R>.to(value: R?) {
-        updates[this.name] = value
+        updates[com.aggitech.orm.core.metadata.EntityRegistry.resolveColumn(this)] = value
     }
 
     // where() herdado de WhereableBuilder
