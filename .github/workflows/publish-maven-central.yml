@@ -1,0 +1,142 @@
+name: Publish to Maven Central
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys
+
+      - name: Build and sign artifacts
+        run: ./gradlew clean build publishToMavenLocal --no-daemon
+        env:
+          ORG_GRADLE_PROJECT_signing.gnupg.keyName: ${{ secrets.GPG_KEY_ID }}
+
+      - name: Create deployment bundle
+        run: |
+          cd /tmp
+          mkdir -p aggorm-bundle/com/aggitech/orm/{aggo-core,aggo-migrations,aggo-spring-boot-starter}/${{ github.ref_name }}
+
+          # Extract version from tag (remove 'v' prefix)
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          for module in aggo-core aggo-migrations aggo-spring-boot-starter; do
+            src=~/.m2/repository/com/aggitech/orm/$module/$VERSION
+            dest=/tmp/aggorm-bundle/com/aggitech/orm/$module/$VERSION
+
+            # Copy artifacts
+            cp $src/$module-$VERSION.jar $dest/
+            cp $src/$module-$VERSION.pom $dest/
+            cp $src/$module-$VERSION-sources.jar $dest/
+            cp $src/$module-$VERSION-javadoc.jar $dest/
+            cp $src/$module-$VERSION.jar.asc $dest/
+            cp $src/$module-$VERSION.pom.asc $dest/
+            cp $src/$module-$VERSION-sources.jar.asc $dest/
+            cp $src/$module-$VERSION-javadoc.jar.asc $dest/
+
+            # Generate checksums
+            cd $dest
+            for file in $module-$VERSION.jar $module-$VERSION.pom $module-$VERSION-sources.jar $module-$VERSION-javadoc.jar; do
+              md5sum $file | awk '{print $1}' > $file.md5
+              sha1sum $file | awk '{print $1}' > $file.sha1
+            done
+            cd /tmp
+          done
+
+          cd /tmp/aggorm-bundle
+          zip -r /tmp/aggorm-$VERSION.zip com/
+          ls -lh /tmp/aggorm-$VERSION.zip
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggorm-bundle
+          path: /tmp/aggorm-*.zip
+          retention-days: 5
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: maven-central
+
+    steps:
+      - name: Download bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: aggorm-bundle
+          path: /tmp
+
+      - name: Upload to Maven Central
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          RESPONSE=$(curl -X POST \
+            -u "${{ secrets.OSSRH_USERNAME }}:${{ secrets.OSSRH_PASSWORD }}" \
+            -F "bundle=@/tmp/aggorm-$VERSION.zip" \
+            -F "publishingType=AUTOMATIC" \
+            https://central.sonatype.com/api/v1/publisher/upload)
+
+          echo "Deployment ID: $RESPONSE"
+          echo "DEPLOYMENT_ID=$RESPONSE" >> $GITHUB_ENV
+
+          # Check if upload was successful
+          if [ -z "$RESPONSE" ]; then
+            echo "Error: Failed to upload to Maven Central"
+            exit 1
+          fi
+
+      - name: Wait for validation
+        run: |
+          echo "Deployment submitted successfully!"
+          echo "Deployment ID: ${{ env.DEPLOYMENT_ID }}"
+          echo "Check status at: https://central.sonatype.com/publishing/deployments"
+          echo "Artifacts will be available at: https://central.sonatype.com/artifact/com.aggitech.orm/aggo-core"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## AggORM ${{ github.ref_name }}
+
+            Published to Maven Central with deployment ID: `${{ env.DEPLOYMENT_ID }}`
+
+            ### Maven Coordinates
+
+            ```kotlin
+            dependencies {
+                implementation("com.aggitech.orm:aggo-core:${{ github.ref_name }}")
+                implementation("com.aggitech.orm:aggo-migrations:${{ github.ref_name }}")
+                implementation("com.aggitech.orm:aggo-spring-boot-starter:${{ github.ref_name }}")
+            }
+            ```
+
+            The artifacts will be available on Maven Central within a few hours.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
