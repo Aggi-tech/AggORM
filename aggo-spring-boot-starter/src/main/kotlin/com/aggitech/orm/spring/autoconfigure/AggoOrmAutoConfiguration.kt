@@ -127,8 +127,9 @@ class AggoOrmAutoConfiguration(
 
 /**
  * Configuração adicional para integração com DataSource do Spring
+ * Só cria DbConfig a partir do DataSource se as properties do AggORM não estiverem configuradas
  */
-@Configuration
+@AutoConfiguration(after = [AggoOrmAutoConfiguration::class])
 @ConditionalOnClass(DataSource::class)
 class AggoDataSourceConfiguration {
 
