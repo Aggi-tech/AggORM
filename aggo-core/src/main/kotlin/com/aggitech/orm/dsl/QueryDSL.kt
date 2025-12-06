@@ -122,6 +122,101 @@ class SelectQueryBuilder<T : Any>(override val entityClass: KClass<T>) : Whereab
         distinctFlag = true
     }
 
+    // ==================== Funções de Agregação (atalhos) ====================
+
+    /**
+     * COUNT(*) - conta todas as linhas
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun countAll(alias: String) {
+        fields.add(
+            SelectField.Aggregate(
+                function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT,
+                field = SelectField.All,
+                alias = alias
+            )
+        )
+    }
+
+    /**
+     * COUNT de uma propriedade específica
+     * @param property A propriedade a ser contada (valores não-nulos)
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R> count(property: KProperty1<T, R>, alias: String) {
+        fields.add(
+            SelectField.Aggregate(
+                function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT,
+                field = SelectField.Property(entityClass, property),
+                alias = alias
+            )
+        )
+    }
+
+    /**
+     * COUNT(DISTINCT column) - conta valores únicos
+     * @param property A propriedade a ser contada (valores únicos não-nulos)
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R> countDistinct(property: KProperty1<T, R>, alias: String) {
+        fields.add(
+            SelectField.Aggregate(
+                function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT_DISTINCT,
+                field = SelectField.Property(entityClass, property),
+                alias = alias
+            )
+        )
+    }
+
+    /**
+     * Método auxiliar para criar campos de agregação numérica
+     */
+    private fun <R : Number> aggregate(
+        function: com.aggitech.orm.query.model.field.AggregateFunction,
+        property: KProperty1<T, R?>,
+        alias: String
+    ) {
+        fields.add(
+            SelectField.Aggregate(
+                function = function,
+                field = SelectField.Property(entityClass, property),
+                alias = alias
+            )
+        )
+    }
+
+    /**
+     * SUM - soma valores numéricos
+     * @param property A propriedade numérica a ser somada
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> sum(property: KProperty1<T, R?>, alias: String) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.SUM, property, alias)
+
+    /**
+     * AVG - calcula a média de valores numéricos
+     * @param property A propriedade numérica para calcular a média
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> avg(property: KProperty1<T, R?>, alias: String) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.AVG, property, alias)
+
+    /**
+     * MAX - retorna o valor máximo
+     * @param property A propriedade numérica para encontrar o máximo
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> max(property: KProperty1<T, R?>, alias: String) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.MAX, property, alias)
+
+    /**
+     * MIN - retorna o valor mínimo
+     * @param property A propriedade numérica para encontrar o mínimo
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> min(property: KProperty1<T, R?>, alias: String) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.MIN, property, alias)
+
     /**
      * Constrói a query SELECT
      */
