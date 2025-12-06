@@ -51,18 +51,18 @@ jobs:
           # Check for breaking changes (MAJOR bump)
           if echo "$COMMITS" | grep -qiE "^(feat|fix|refactor|perf)(\(.+\))?!:|BREAKING CHANGE:"; then
             BUMP_TYPE="major"
-            ((MAJOR++))
+            MAJOR=$((MAJOR + 1))
             MINOR=0
             PATCH=0
           # Check for new features (MINOR bump)
           elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
             BUMP_TYPE="minor"
-            ((MINOR++))
+            MINOR=$((MINOR + 1))
             PATCH=0
           # Check for fixes, refactors, perf improvements (PATCH bump)
-          elif echo "$COMMITS" | grep -qiE "^(fix|refactor|perf|chore|ci|build)(\(.+\))?:"; then
+          elif echo "$COMMITS" | grep -qiE "^(fix|refactor|perf)(\(.+\))?:"; then
             BUMP_TYPE="patch"
-            ((PATCH++))
+            PATCH=$((PATCH + 1))
           fi
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
