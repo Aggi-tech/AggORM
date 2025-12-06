@@ -17,6 +17,9 @@ dependencies {
     // Dependência do módulo core
     api(project(":aggo-core"))
 
+    // Dependência do módulo migrations (opcional)
+    api(project(":aggo-migrations"))
+
     // Spring Boot e JPA (dependencies obrigatórias para o starter)
     implementation("org.springframework.boot:spring-boot-starter-data-jpa:3.2.0")
     implementation("org.springframework:spring-context:6.1.0")

@@ -83,7 +83,7 @@ class AggoMigrationsAutoConfiguration {
     @Bean
     fun migrationExecutor(dbConfig: DbConfig, dialect: SqlDialect): MigrationExecutor {
         val connection = DriverManager.getConnection(
-            dbConfig.getJdbcUrl(),
+            dbConfig.url,
             dbConfig.user,
             dbConfig.password
         )
