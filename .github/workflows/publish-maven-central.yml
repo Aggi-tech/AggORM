@@ -87,6 +87,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: maven-central
+    permissions:
+      contents: write
 
     steps:
       - name: Download bundle artifact

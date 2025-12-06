@@ -1,0 +1,122 @@
+name: Auto Version & Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/auto-version.yml'
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump
+        id: version
+        run: |
+          # Get current version from build.gradle.kts
+          CURRENT_VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' build.gradle.kts)
+          echo "Current version: $CURRENT_VERSION"
+
+          # Parse current version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+
+          # Get commits since last tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+
+          echo "Analyzing commits since $LAST_TAG:"
+          echo "$COMMITS"
+
+          # Determine bump type based on conventional commits
+          BUMP_TYPE="none"
+
+          # Check for breaking changes (MAJOR bump)
+          if echo "$COMMITS" | grep -qiE "^(feat|fix|refactor|perf)(\(.+\))?!:|BREAKING CHANGE:"; then
+            BUMP_TYPE="major"
+            ((MAJOR++))
+            MINOR=0
+            PATCH=0
+          # Check for new features (MINOR bump)
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP_TYPE="minor"
+            ((MINOR++))
+            PATCH=0
+          # Check for fixes, refactors, perf improvements (PATCH bump)
+          elif echo "$COMMITS" | grep -qiE "^(fix|refactor|perf|chore|ci|build)(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+            ((PATCH++))
+          fi
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "Bump type: $BUMP_TYPE"
+          echo "New version: $NEW_VERSION"
+
+          # Check if version changed
+          if [ "$NEW_VERSION" != "$CURRENT_VERSION" ] && [ "$BUMP_TYPE" != "none" ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "new_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "No version bump needed"
+          fi
+
+      - name: Update version in build.gradle.kts
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" build.gradle.kts
+          echo "Updated build.gradle.kts to version $NEW_VERSION"
+          cat build.gradle.kts | grep version
+
+      - name: Commit and tag new version
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add build.gradle.kts
+          git commit -m "chore(release): bump version to $NEW_VERSION [skip ci]"
+          git tag "v$NEW_VERSION"
+
+          git push origin main
+          git push origin "v$NEW_VERSION"
+
+          echo "Created and pushed tag v$NEW_VERSION"
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.version.outputs.should_release }}" == "true" ]; then
+            echo "## Version Bump Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **New Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag Created:** v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The publish workflow will be triggered automatically." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## No Version Bump Needed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No conventional commits detected that require a version bump." >> $GITHUB_STEP_SUMMARY
+          fi
