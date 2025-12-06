@@ -20,13 +20,44 @@ import javax.sql.DataSource
  */
 @ConfigurationProperties(prefix = "aggo.orm")
 data class AggoOrmProperties(
+    /**
+     * Nome do banco de dados para conexão
+     */
     var database: String = "",
+
+    /**
+     * Hostname do servidor de banco de dados
+     */
     var host: String = "localhost",
+
+    /**
+     * Porta do servidor de banco de dados
+     */
     var port: Int = 5432,
+
+    /**
+     * Nome de usuário para autenticação no banco de dados
+     */
     var username: String = "",
+
+    /**
+     * Senha para autenticação no banco de dados
+     */
     var password: String = "",
+
+    /**
+     * Tipo do banco de dados (POSTGRESQL, MYSQL)
+     */
     var databaseType: String = "POSTGRESQL",
+
+    /**
+     * Dialeto SQL a ser usado (POSTGRESQL, POSTGRES, MYSQL)
+     */
     var dialect: String = "POSTGRESQL",
+
+    /**
+     * Habilita ou desabilita a auto-configuração do AggORM
+     */
     var enabled: Boolean = true
 ) {
     fun toDbConfig(): DbConfig {

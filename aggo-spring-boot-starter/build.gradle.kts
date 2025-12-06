@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm")
-    kotlin("plugin.spring") version "2.2.20"
+    kotlin("plugin.spring")
+    kotlin("kapt")
     `maven-publish`
     signing
 }
@@ -26,6 +27,9 @@ dependencies {
     implementation("org.springframework:spring-tx:6.1.0")
     implementation("jakarta.persistence:jakarta.persistence-api:3.1.0")
     implementation("org.springframework.boot:spring-boot-autoconfigure:3.2.0")
+
+    // Configuration processor para gerar metadata de propriedades
+    kapt("org.springframework.boot:spring-boot-configuration-processor:3.2.0")
 
     // Reflection e Kotlin
     implementation(kotlin("reflect"))

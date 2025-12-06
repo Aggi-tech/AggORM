@@ -1,0 +1,122 @@
+{
+  "groups": [
+    {
+      "name": "aggo.orm",
+      "type": "com.aggitech.orm.spring.autoconfigure.AggoOrmProperties",
+      "description": "AggORM database configuration properties."
+    },
+    {
+      "name": "aggo.orm.migrations",
+      "type": "com.aggitech.orm.spring.autoconfigure.AggoMigrationsProperties",
+      "description": "AggORM migrations configuration properties."
+    }
+  ],
+  "properties": [
+    {
+      "name": "aggo.orm.database",
+      "type": "java.lang.String",
+      "description": "Database name to connect to."
+    },
+    {
+      "name": "aggo.orm.host",
+      "type": "java.lang.String",
+      "description": "Database server hostname.",
+      "defaultValue": "localhost"
+    },
+    {
+      "name": "aggo.orm.port",
+      "type": "java.lang.Integer",
+      "description": "Database server port.",
+      "defaultValue": 5432
+    },
+    {
+      "name": "aggo.orm.username",
+      "type": "java.lang.String",
+      "description": "Database username for authentication."
+    },
+    {
+      "name": "aggo.orm.password",
+      "type": "java.lang.String",
+      "description": "Database password for authentication."
+    },
+    {
+      "name": "aggo.orm.database-type",
+      "type": "java.lang.String",
+      "description": "Type of database (POSTGRESQL, MYSQL).",
+      "defaultValue": "POSTGRESQL"
+    },
+    {
+      "name": "aggo.orm.dialect",
+      "type": "java.lang.String",
+      "description": "SQL dialect to use (POSTGRESQL, POSTGRES, MYSQL).",
+      "defaultValue": "POSTGRESQL"
+    },
+    {
+      "name": "aggo.orm.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether to enable AggORM auto-configuration.",
+      "defaultValue": true
+    },
+    {
+      "name": "aggo.orm.migrations.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether to enable automatic migrations on startup.",
+      "defaultValue": true
+    },
+    {
+      "name": "aggo.orm.migrations.base-package",
+      "type": "java.lang.String",
+      "description": "Base package to scan for migration classes."
+    },
+    {
+      "name": "aggo.orm.migrations.show-details",
+      "type": "java.lang.Boolean",
+      "description": "Whether to show detailed migration execution logs.",
+      "defaultValue": true
+    },
+    {
+      "name": "aggo.orm.migrations.fail-on-error",
+      "type": "java.lang.Boolean",
+      "description": "Whether to stop application startup if a migration fails.",
+      "defaultValue": true
+    },
+    {
+      "name": "aggo.orm.migrations.validate-checksums",
+      "type": "java.lang.Boolean",
+      "description": "Whether to validate checksums of already applied migrations.",
+      "defaultValue": true
+    }
+  ],
+  "hints": [
+    {
+      "name": "aggo.orm.database-type",
+      "values": [
+        {
+          "value": "POSTGRESQL",
+          "description": "PostgreSQL database."
+        },
+        {
+          "value": "MYSQL",
+          "description": "MySQL database."
+        }
+      ]
+    },
+    {
+      "name": "aggo.orm.dialect",
+      "values": [
+        {
+          "value": "POSTGRESQL",
+          "description": "PostgreSQL SQL dialect."
+        },
+        {
+          "value": "POSTGRES",
+          "description": "PostgreSQL SQL dialect (alias)."
+        },
+        {
+          "value": "MYSQL",
+          "description": "MySQL SQL dialect."
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.2.20" apply false
     kotlin("plugin.spring") version "2.2.20" apply false
+    kotlin("kapt") version "2.2.20" apply false
 }
 
 group = "com.aggitech.orm"
