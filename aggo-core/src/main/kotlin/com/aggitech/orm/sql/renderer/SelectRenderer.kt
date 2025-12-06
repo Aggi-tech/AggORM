@@ -5,7 +5,6 @@ import com.aggitech.orm.dsl.JoinClause
 import com.aggitech.orm.enums.SqlDialect
 import com.aggitech.orm.query.model.SelectQuery
 import com.aggitech.orm.query.model.field.SelectField
-import com.aggitech.orm.query.model.operand.Operand
 import com.aggitech.orm.query.model.ordering.PropertyOrder
 import com.aggitech.orm.query.model.predicate.Predicate
 import com.aggitech.orm.sql.context.RenderContext
@@ -17,6 +16,8 @@ import com.aggitech.orm.sql.context.RenderedSql
 class SelectRenderer(
     private val dialect: SqlDialect
 ) : QueryRenderer<SelectQuery<*>> {
+
+    private val predicateRenderer = PredicateRenderer(dialect)
 
     override fun render(query: SelectQuery<*>): RenderedSql {
         val context = RenderContext(dialect)
@@ -41,7 +42,7 @@ class SelectRenderer(
             // WHERE clause
             query.where?.let { predicate ->
                 append(" WHERE ")
-                append(renderPredicate(predicate, context))
+                append(predicateRenderer.render(predicate, context))
             }
 
             // GROUP BY
@@ -53,7 +54,7 @@ class SelectRenderer(
             // HAVING
             query.having?.let { predicate ->
                 append(" HAVING ")
-                append(renderPredicate(predicate, context))
+                append(predicateRenderer.render(predicate, context))
             }
 
             // ORDER BY
@@ -81,18 +82,12 @@ class SelectRenderer(
         return fields.joinToString(", ") { field ->
             when (field) {
                 is SelectField.Property<*, *> -> {
-                    val table = EntityRegistry.resolveTable(field.entity)
-                    val column = EntityRegistry.resolveColumn(field.property)
-                    val qualified = "$table.$column"
+                    val qualified = ctx.qualifyColumn(field.entity, field.property)
                     field.alias?.let { "$qualified AS $it" } ?: qualified
                 }
                 is SelectField.Aggregate -> {
                     val inner = when (val innerField = field.field) {
-                        is SelectField.Property<*, *> -> {
-                            val table = EntityRegistry.resolveTable(innerField.entity)
-                            val column = EntityRegistry.resolveColumn(innerField.property)
-                            "$table.$column"
-                        }
+                        is SelectField.Property<*, *> -> ctx.qualifyColumn(innerField.entity, innerField.property)
                         SelectField.All -> "*"
                         else -> renderFields(listOf(innerField), fromClass, ctx)
                     }
@@ -129,71 +124,11 @@ class SelectRenderer(
 
     /**
      * Renderiza um predicado WHERE
+     * @deprecated Use PredicateRenderer diretamente para melhor desacoplamento
      */
+    @Deprecated("Use PredicateRenderer.render() diretamente", ReplaceWith("PredicateRenderer(dialect).render(predicate, ctx)"))
     fun renderPredicate(predicate: Predicate, ctx: RenderContext): String {
-        return when (predicate) {
-            is Predicate.Comparison -> {
-                val left = renderOperand(predicate.left, ctx)
-                val right = renderOperand(predicate.right, ctx)
-                "$left ${predicate.operator.symbol} $right"
-            }
-            is Predicate.And -> {
-                "(${renderPredicate(predicate.left, ctx)} AND ${renderPredicate(predicate.right, ctx)})"
-            }
-            is Predicate.Or -> {
-                "(${renderPredicate(predicate.left, ctx)} OR ${renderPredicate(predicate.right, ctx)})"
-            }
-            is Predicate.Not -> {
-                "NOT (${renderPredicate(predicate.predicate, ctx)})"
-            }
-            is Predicate.Like -> {
-                val operand = renderOperand(predicate.operand, ctx)
-                val param = ctx.addParameter(predicate.pattern)
-                "$operand LIKE $param"
-            }
-            is Predicate.NotLike -> {
-                val operand = renderOperand(predicate.operand, ctx)
-                val param = ctx.addParameter(predicate.pattern)
-                "$operand NOT LIKE $param"
-            }
-            is Predicate.In<*> -> {
-                val operand = renderOperand(predicate.operand, ctx)
-                val params = ctx.addParameters(predicate.values)
-                "$operand IN ($params)"
-            }
-            is Predicate.NotIn<*> -> {
-                val operand = renderOperand(predicate.operand, ctx)
-                val params = ctx.addParameters(predicate.values)
-                "$operand NOT IN ($params)"
-            }
-            is Predicate.IsNull -> {
-                "${renderOperand(predicate.operand, ctx)} IS NULL"
-            }
-            is Predicate.IsNotNull -> {
-                "${renderOperand(predicate.operand, ctx)} IS NOT NULL"
-            }
-            is Predicate.Between<*> -> {
-                val operand = renderOperand(predicate.operand, ctx)
-                val lower = ctx.addParameter(predicate.lower)
-                val upper = ctx.addParameter(predicate.upper)
-                "$operand BETWEEN $lower AND $upper"
-            }
-        }
-    }
-
-    /**
-     * Renderiza um operando
-     */
-    private fun renderOperand(operand: Operand, ctx: RenderContext): String {
-        return when (operand) {
-            is Operand.Property<*, *> -> {
-                val table = EntityRegistry.resolveTable(operand.entity)
-                val column = EntityRegistry.resolveColumn(operand.property)
-                "$table.$column"
-            }
-            is Operand.Literal<*> -> ctx.addParameter(operand.value)
-            is Operand.Parameter -> "?"
-        }
+        return predicateRenderer.render(predicate, ctx)
     }
 
     /**
@@ -202,11 +137,7 @@ class SelectRenderer(
     private fun renderGroupBy(fields: List<SelectField>, ctx: RenderContext): String {
         return fields.joinToString(", ") { field ->
             when (field) {
-                is SelectField.Property<*, *> -> {
-                    val table = EntityRegistry.resolveTable(field.entity)
-                    val column = EntityRegistry.resolveColumn(field.property)
-                    "$table.$column"
-                }
+                is SelectField.Property<*, *> -> ctx.qualifyColumn(field.entity, field.property)
                 is SelectField.Expression -> field.sql
                 else -> throw IllegalArgumentException("Cannot GROUP BY ${field::class.simpleName}")
             }
@@ -218,9 +149,7 @@ class SelectRenderer(
      */
     private fun renderOrderBy(orderings: List<PropertyOrder<*, *>>, ctx: RenderContext): String {
         return orderings.joinToString(", ") { order ->
-            val table = EntityRegistry.resolveTable(order.entity)
-            val column = EntityRegistry.resolveColumn(order.property)
-            "$table.$column ${order.direction.name}"
+            "${ctx.qualifyColumn(order.entity, order.property)} ${order.direction.name}"
         }
     }
 }

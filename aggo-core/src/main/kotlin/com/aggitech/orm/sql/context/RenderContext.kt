@@ -1,6 +1,9 @@
 package com.aggitech.orm.sql.context
 
+import com.aggitech.orm.core.metadata.EntityRegistry
 import com.aggitech.orm.enums.SqlDialect
+import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
 
 /**
  * Contexto usado durante a renderização de SQL.
@@ -46,6 +49,15 @@ class RenderContext(val dialect: SqlDialect) {
     fun quote(identifier: String): String {
         val quoteChar = dialect.quoteChar
         return "$quoteChar$identifier$quoteChar"
+    }
+
+    /**
+     * Retorna o nome qualificado de uma coluna (tabela.coluna) - DRY helper
+     */
+    fun qualifyColumn(entity: KClass<*>, property: KProperty1<*, *>): String {
+        val table = EntityRegistry.resolveTable(entity)
+        val column = EntityRegistry.resolveColumn(property)
+        return "$table.$column"
     }
 }
 

@@ -23,15 +23,33 @@ data class JoinClause(
     val parameters: List<Any?>
 )
 
+// ==================== Interfaces Comuns ====================
+
+/**
+ * Interface para builders que suportam cláusula WHERE (DRY)
+ */
+interface WhereableBuilder<T : Any> {
+    val entityClass: KClass<T>
+    var wherePredicate: Predicate?
+
+    /**
+     * Define a cláusula WHERE
+     */
+    fun where(block: WhereBuilder<T>.() -> Predicate) {
+        val builder = WhereBuilder(entityClass)
+        wherePredicate = builder.block()
+    }
+}
+
 // ==================== DSL Builders ====================
 
 /**
  * DSL entry point para criação de queries SELECT
  */
-class SelectQueryBuilder<T : Any>(private val entityClass: KClass<T>) {
+class SelectQueryBuilder<T : Any>(override val entityClass: KClass<T>) : WhereableBuilder<T> {
     private val fields = mutableListOf<SelectField>()
     private val joins = mutableListOf<JoinClause>()
-    private var wherePredicate: Predicate? = null
+    override var wherePredicate: Predicate? = null
     private val groupByFields = mutableListOf<SelectField>()
     private var havingPredicate: Predicate? = null
     private val orderByList = mutableListOf<PropertyOrder<*, *>>()
@@ -55,13 +73,7 @@ class SelectQueryBuilder<T : Any>(private val entityClass: KClass<T>) {
         fields.add(SelectField.Property(entityClass, property, alias))
     }
 
-    /**
-     * Define a cláusula WHERE
-     */
-    fun where(block: WhereBuilder<T>.() -> Predicate) {
-        val builder = WhereBuilder(entityClass)
-        wherePredicate = builder.block()
-    }
+    // where() herdado de WhereableBuilder
 
     /**
      * Define GROUP BY
@@ -136,42 +148,42 @@ class SelectBuilder<T : Any>(private val entityClass: KClass<T>) {
     val fields = mutableListOf<SelectField>()
 
     /**
-     * Adiciona uma propriedade ao SELECT
+     * Método auxiliar para criar campos de agregação (DRY)
      */
-    operator fun <R> KProperty1<T, R>.unaryPlus() {
-        fields.add(SelectField.Property(entityClass, this))
-    }
-
-    /**
-     * Adiciona uma propriedade com alias
-     */
-    infix fun <R> KProperty1<T, R>.alias(alias: String) {
-        fields.add(SelectField.Property(entityClass, this, alias))
-    }
-
-    /**
-     * Adiciona todos os campos (SELECT *)
-     */
-    fun all() {
-        fields.add(SelectField.All)
-    }
-
-    /**
-     * COUNT
-     */
-    fun <R> count(property: KProperty1<T, R>, alias: String? = null) {
+    private fun <R> aggregate(
+        function: com.aggitech.orm.query.model.field.AggregateFunction,
+        property: KProperty1<T, R>,
+        alias: String? = null
+    ) {
         fields.add(
             SelectField.Aggregate(
-                function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT,
+                function = function,
                 field = SelectField.Property(entityClass, property),
                 alias = alias
             )
         )
     }
 
-    /**
-     * COUNT(*)
-     */
+    /** Adiciona uma propriedade ao SELECT */
+    operator fun <R> KProperty1<T, R>.unaryPlus() {
+        fields.add(SelectField.Property(entityClass, this))
+    }
+
+    /** Adiciona uma propriedade com alias */
+    infix fun <R> KProperty1<T, R>.alias(alias: String) {
+        fields.add(SelectField.Property(entityClass, this, alias))
+    }
+
+    /** Adiciona todos os campos (SELECT *) */
+    fun all() {
+        fields.add(SelectField.All)
+    }
+
+    /** COUNT de uma propriedade */
+    fun <R> count(property: KProperty1<T, R>, alias: String? = null) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.COUNT, property, alias)
+
+    /** COUNT(*) */
     fun countAll(alias: String? = null) {
         fields.add(
             SelectField.Aggregate(
@@ -182,128 +194,58 @@ class SelectBuilder<T : Any>(private val entityClass: KClass<T>) {
         )
     }
 
-    /**
-     * SUM
-     */
-    fun <R> sum(property: KProperty1<T, R>, alias: String? = null) {
-        fields.add(
-            SelectField.Aggregate(
-                function = com.aggitech.orm.query.model.field.AggregateFunction.SUM,
-                field = SelectField.Property(entityClass, property),
-                alias = alias
-            )
-        )
-    }
+    /** SUM */
+    fun <R> sum(property: KProperty1<T, R>, alias: String? = null) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.SUM, property, alias)
 
-    /**
-     * AVG
-     */
-    fun <R> avg(property: KProperty1<T, R>, alias: String? = null) {
-        fields.add(
-            SelectField.Aggregate(
-                function = com.aggitech.orm.query.model.field.AggregateFunction.AVG,
-                field = SelectField.Property(entityClass, property),
-                alias = alias
-            )
-        )
-    }
+    /** AVG */
+    fun <R> avg(property: KProperty1<T, R>, alias: String? = null) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.AVG, property, alias)
 
-    /**
-     * MAX
-     */
-    fun <R> max(property: KProperty1<T, R>, alias: String? = null) {
-        fields.add(
-            SelectField.Aggregate(
-                function = com.aggitech.orm.query.model.field.AggregateFunction.MAX,
-                field = SelectField.Property(entityClass, property),
-                alias = alias
-            )
-        )
-    }
+    /** MAX */
+    fun <R> max(property: KProperty1<T, R>, alias: String? = null) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.MAX, property, alias)
 
-    /**
-     * MIN
-     */
-    fun <R> min(property: KProperty1<T, R>, alias: String? = null) {
-        fields.add(
-            SelectField.Aggregate(
-                function = com.aggitech.orm.query.model.field.AggregateFunction.MIN,
-                field = SelectField.Property(entityClass, property),
-                alias = alias
-            )
-        )
-    }
+    /** MIN */
+    fun <R> min(property: KProperty1<T, R>, alias: String? = null) =
+        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.MIN, property, alias)
 }
 
 /**
  * Builder para cláusula WHERE
  */
 class WhereBuilder<T : Any>(private val entityClass: KClass<T>) {
-    /**
-     * Operador de igualdade (=)
-     */
-    infix fun <R> KProperty1<T, R>.eq(value: R): Predicate {
-        return Predicate.Comparison(
-            left = Operand.Property(entityClass, this),
-            operator = ComparisonOperator.EQ,
-            right = Operand.Literal(value)
-        )
-    }
 
     /**
-     * Operador de diferença (!=)
+     * Método auxiliar para criar predicados de comparação (DRY)
      */
-    infix fun <R> KProperty1<T, R>.ne(value: R): Predicate {
-        return Predicate.Comparison(
-            left = Operand.Property(entityClass, this),
-            operator = ComparisonOperator.NE,
-            right = Operand.Literal(value)
-        )
-    }
+    private fun <R> comparison(
+        property: KProperty1<T, R>,
+        operator: ComparisonOperator,
+        value: R
+    ): Predicate = Predicate.Comparison(
+        left = Operand.Property(entityClass, property),
+        operator = operator,
+        right = Operand.Literal(value)
+    )
 
-    /**
-     * Operador maior que (>)
-     */
-    infix fun <R> KProperty1<T, R>.gt(value: R): Predicate {
-        return Predicate.Comparison(
-            left = Operand.Property(entityClass, this),
-            operator = ComparisonOperator.GT,
-            right = Operand.Literal(value)
-        )
-    }
+    /** Operador de igualdade (=) */
+    infix fun <R> KProperty1<T, R>.eq(value: R): Predicate = comparison(this, ComparisonOperator.EQ, value)
 
-    /**
-     * Operador maior ou igual (>=)
-     */
-    infix fun <R> KProperty1<T, R>.gte(value: R): Predicate {
-        return Predicate.Comparison(
-            left = Operand.Property(entityClass, this),
-            operator = ComparisonOperator.GTE,
-            right = Operand.Literal(value)
-        )
-    }
+    /** Operador de diferença (!=) */
+    infix fun <R> KProperty1<T, R>.ne(value: R): Predicate = comparison(this, ComparisonOperator.NE, value)
 
-    /**
-     * Operador menor que (<)
-     */
-    infix fun <R> KProperty1<T, R>.lt(value: R): Predicate {
-        return Predicate.Comparison(
-            left = Operand.Property(entityClass, this),
-            operator = ComparisonOperator.LT,
-            right = Operand.Literal(value)
-        )
-    }
+    /** Operador maior que (>) */
+    infix fun <R> KProperty1<T, R>.gt(value: R): Predicate = comparison(this, ComparisonOperator.GT, value)
 
-    /**
-     * Operador menor ou igual (<=)
-     */
-    infix fun <R> KProperty1<T, R>.lte(value: R): Predicate {
-        return Predicate.Comparison(
-            left = Operand.Property(entityClass, this),
-            operator = ComparisonOperator.LTE,
-            right = Operand.Literal(value)
-        )
-    }
+    /** Operador maior ou igual (>=) */
+    infix fun <R> KProperty1<T, R>.gte(value: R): Predicate = comparison(this, ComparisonOperator.GTE, value)
+
+    /** Operador menor que (<) */
+    infix fun <R> KProperty1<T, R>.lt(value: R): Predicate = comparison(this, ComparisonOperator.LT, value)
+
+    /** Operador menor ou igual (<=) */
+    infix fun <R> KProperty1<T, R>.lte(value: R): Predicate = comparison(this, ComparisonOperator.LTE, value)
 
     /**
      * LIKE
@@ -462,9 +404,9 @@ inline fun <reified T : Any> insert(entity: T): InsertQuery<T> {
 /**
  * DSL para UPDATE
  */
-class UpdateQueryBuilder<T : Any>(private val entityClass: KClass<T>) {
+class UpdateQueryBuilder<T : Any>(override val entityClass: KClass<T>) : WhereableBuilder<T> {
     private val updates = mutableMapOf<String, Any?>()
-    private var wherePredicate: Predicate? = null
+    override var wherePredicate: Predicate? = null
 
     /**
      * Define um valor para atualizar
@@ -473,13 +415,7 @@ class UpdateQueryBuilder<T : Any>(private val entityClass: KClass<T>) {
         updates[this.name] = value
     }
 
-    /**
-     * Define a cláusula WHERE
-     */
-    fun where(block: WhereBuilder<T>.() -> Predicate) {
-        val builder = WhereBuilder(entityClass)
-        wherePredicate = builder.block()
-    }
+    // where() herdado de WhereableBuilder
 
     /**
      * Constrói a query UPDATE
@@ -505,16 +441,10 @@ inline fun <reified T : Any> update(block: UpdateQueryBuilder<T>.() -> Unit): Up
 /**
  * DSL para DELETE
  */
-class DeleteQueryBuilder<T : Any>(private val entityClass: KClass<T>) {
-    private var wherePredicate: Predicate? = null
+class DeleteQueryBuilder<T : Any>(override val entityClass: KClass<T>) : WhereableBuilder<T> {
+    override var wherePredicate: Predicate? = null
 
-    /**
-     * Define a cláusula WHERE
-     */
-    fun where(block: WhereBuilder<T>.() -> Predicate) {
-        val builder = WhereBuilder(entityClass)
-        wherePredicate = builder.block()
-    }
+    // where() herdado de WhereableBuilder
 
     /**
      * Constrói a query DELETE

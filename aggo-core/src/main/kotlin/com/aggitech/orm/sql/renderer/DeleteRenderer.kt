@@ -13,6 +13,8 @@ class DeleteRenderer(
     private val dialect: SqlDialect
 ) : QueryRenderer<DeleteQuery<*>> {
 
+    private val predicateRenderer = PredicateRenderer(dialect)
+
     override fun render(query: DeleteQuery<*>): RenderedSql {
         val context = RenderContext(dialect)
 
@@ -23,9 +25,7 @@ class DeleteRenderer(
 
             query.where?.let { predicate ->
                 append(" WHERE ")
-                // Reusa o renderizador de predicados do SelectRenderer
-                val selectRenderer = com.aggitech.orm.sql.renderer.SelectRenderer(dialect)
-                append(selectRenderer.renderPredicate(predicate, context))
+                append(predicateRenderer.render(predicate, context))
             }
         }
 
