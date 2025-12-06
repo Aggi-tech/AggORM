@@ -26,8 +26,7 @@
     {
       "name": "aggo.orm.port",
       "type": "java.lang.Integer",
-      "description": "Database server port.",
-      "defaultValue": 5432
+      "description": "Database server port. Defaults based on dialect (5432 for PostgreSQL, 3306 for MySQL)."
     },
     {
       "name": "aggo.orm.username",
@@ -40,15 +39,9 @@
       "description": "Database password for authentication."
     },
     {
-      "name": "aggo.orm.database-type",
-      "type": "java.lang.String",
-      "description": "Type of database (POSTGRESQL, MYSQL).",
-      "defaultValue": "POSTGRESQL"
-    },
-    {
       "name": "aggo.orm.dialect",
-      "type": "java.lang.String",
-      "description": "SQL dialect to use (POSTGRESQL, POSTGRES, MYSQL).",
+      "type": "com.aggitech.orm.spring.autoconfigure.AggoDialect",
+      "description": "SQL dialect - determines database type and default port.",
       "defaultValue": "POSTGRESQL"
     },
     {
@@ -89,32 +82,15 @@
   ],
   "hints": [
     {
-      "name": "aggo.orm.database-type",
-      "values": [
-        {
-          "value": "POSTGRESQL",
-          "description": "PostgreSQL database."
-        },
-        {
-          "value": "MYSQL",
-          "description": "MySQL database."
-        }
-      ]
-    },
-    {
       "name": "aggo.orm.dialect",
       "values": [
         {
           "value": "POSTGRESQL",
-          "description": "PostgreSQL SQL dialect."
-        },
-        {
-          "value": "POSTGRES",
-          "description": "PostgreSQL SQL dialect (alias)."
+          "description": "PostgreSQL database (port 5432)."
         },
         {
           "value": "MYSQL",
-          "description": "MySQL SQL dialect."
+          "description": "MySQL database (port 3306)."
         }
       ]
     }

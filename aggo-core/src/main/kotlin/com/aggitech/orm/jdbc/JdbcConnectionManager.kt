@@ -1,10 +1,12 @@
 package com.aggitech.orm.jdbc
 
+import com.aggitech.orm.config.AggoPropertiesLoader
 import com.aggitech.orm.config.DbConfig
 import com.aggitech.orm.enums.SqlDialect
 import java.sql.Connection
 import java.sql.DriverManager
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -13,11 +15,68 @@ import kotlin.concurrent.withLock
  *
  * Mantém conexões abertas e reutiliza entre queries.
  * Usa ThreadLocal para garantir isolamento entre threads.
+ *
+ * Suporta auto-inicialização a partir de:
+ * - application.properties
+ * - application.yml / application.yaml
+ *
+ * Uso simples (com auto-configuração):
+ * ```kotlin
+ * // Carrega automaticamente de application.properties/yml
+ * JdbcConnectionManager.autoInit()
+ *
+ * // Ou use diretamente - auto-inicializa na primeira chamada
+ * val connection = JdbcConnectionManager.getConnection()
+ * ```
  */
 object JdbcConnectionManager {
     private val configs = ConcurrentHashMap<String, DbConfig>()
     private val connectionPools = ConcurrentHashMap<String, JdbcConnectionPool>()
     private val lock = ReentrantLock()
+    private val autoInitialized = AtomicBoolean(false)
+
+    /**
+     * Auto-inicializa o JdbcConnectionManager a partir de arquivos de configuração
+     *
+     * Procura por configuração em:
+     * 1. application.yml
+     * 2. application.yaml
+     * 3. application.properties
+     *
+     * @param classLoader ClassLoader para buscar recursos (opcional)
+     * @return true se inicializado com sucesso, false caso contrário
+     */
+    fun autoInit(classLoader: ClassLoader? = null): Boolean {
+        if (autoInitialized.get() && configs.containsKey("default")) {
+            return true
+        }
+
+        val config = AggoPropertiesLoader.loadFromClasspath(classLoader)
+        if (config != null) {
+            register("default", config)
+            autoInitialized.set(true)
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Verifica se já foi inicializado (manual ou automaticamente)
+     */
+    fun isInitialized(name: String = "default"): Boolean {
+        return configs.containsKey(name)
+    }
+
+    /**
+     * Tenta auto-inicializar se ainda não foi inicializado
+     * Chamado internamente antes de operações que requerem conexão
+     */
+    private fun ensureInitialized(name: String) {
+        if (!configs.containsKey(name) && name == "default") {
+            autoInit()
+        }
+    }
 
     /**
      * Registra uma configuração de banco de dados
@@ -33,6 +92,10 @@ object JdbcConnectionManager {
             if (!connectionPools.containsKey(name)) {
                 connectionPools[name] = JdbcConnectionPool(config)
             }
+
+            if (name == "default") {
+                autoInitialized.set(true)
+            }
         }
     }
 
@@ -43,9 +106,12 @@ object JdbcConnectionManager {
      * @return Conexão JDBC pronta para uso
      */
     fun getConnection(name: String = "default"): Connection {
+        ensureInitialized(name)
+
         val pool = connectionPools[name]
             ?: throw IllegalStateException(
-                "No configuration registered for '$name'. Call JdbcConnectionManager.register() first."
+                "No configuration registered for '$name'. " +
+                "Call JdbcConnectionManager.register() or ensure application.properties/yml is configured."
             )
 
         return pool.acquire()
@@ -62,8 +128,12 @@ object JdbcConnectionManager {
      * Obtém a configuração registrada
      */
     fun getConfig(name: String = "default"): DbConfig {
+        ensureInitialized(name)
         return configs[name]
-            ?: throw IllegalStateException("No configuration registered for '$name'")
+            ?: throw IllegalStateException(
+                "No configuration registered for '$name'. " +
+                "Call JdbcConnectionManager.register() or ensure application.properties/yml is configured."
+            )
     }
 
     /**
@@ -71,6 +141,14 @@ object JdbcConnectionManager {
      */
     fun getDialect(name: String = "default"): SqlDialect {
         return getConfig(name).dialect
+    }
+
+    /**
+     * Obtém a configuração registrada ou null se não existir
+     */
+    fun getConfigOrNull(name: String = "default"): DbConfig? {
+        ensureInitialized(name)
+        return configs[name]
     }
 
     /**

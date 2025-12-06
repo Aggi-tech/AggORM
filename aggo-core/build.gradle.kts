@@ -19,7 +19,11 @@ dependencies {
     implementation("io.r2dbc:r2dbc-spi:1.0.0.RELEASE")
     implementation("io.r2dbc:r2dbc-pool:1.0.0.RELEASE")
 
+    // YAML support (optional - for application.yml/yaml loading)
+    compileOnly("org.yaml:snakeyaml:2.2")
+
     testImplementation(kotlin("test"))
+    testImplementation("org.yaml:snakeyaml:2.2")
 }
 
 tasks.test {
