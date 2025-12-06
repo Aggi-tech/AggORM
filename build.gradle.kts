@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.github.aggi-tech"
-version = "1.2.0-alpha"
+version = "1.2.0"
 
 allprojects {
     repositories {
