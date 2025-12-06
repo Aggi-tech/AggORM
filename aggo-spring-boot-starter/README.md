@@ -4,12 +4,12 @@ Integração oficial do AggORM com Spring Boot, fornecendo compatibilidade total
 
 ## Features
 
-✅ **AutoConfiguration** - Configuração automática via Spring Boot
-✅ **JPA Compatible** - Suporta anotações JPA (`@Entity`, `@Id`, `@Column`, etc.)
-✅ **Spring Data Repository** - Interface CrudRepository compatível
-✅ **@Transactional Support** - Gerenciamento de transações do Spring
-✅ **Type-Safe DSL** - Query builder com verificação em tempo de compilação
-✅ **Standalone Core** - Core ORM 100% independente de frameworks
+[OK] **AutoConfiguration** - Configuração automática via Spring Boot
+[OK] **JPA Compatible** - Suporta anotações JPA (`@Entity`, `@Id`, `@Column`, etc.)
+[OK] **Spring Data Repository** - Interface CrudRepository compatível
+[OK] **@Transactional Support** - Gerenciamento de transações do Spring
+[OK] **Type-Safe DSL** - Query builder com verificação em tempo de compilação
+[OK] **Standalone Core** - Core ORM 100% independente de frameworks
 
 ## Instalação
 

@@ -1,2 +1,3 @@
 com.aggitech.orm.spring.autoconfigure.AggoOrmAutoConfiguration
 com.aggitech.orm.spring.autoconfigure.AggoDataSourceConfiguration
+com.aggitech.orm.spring.autoconfigure.AggoMigrationsAutoConfiguration

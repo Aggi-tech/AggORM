@@ -3,7 +3,7 @@ plugins {
     kotlin("plugin.spring") version "2.2.20" apply false
 }
 
-group = "com.github.aggi-tech"
+group = "com.aggitech.orm"
 version = "1.3.0"
 
 allprojects {
@@ -13,6 +13,9 @@ allprojects {
 }
 
 subprojects {
+    group = rootProject.group
+    version = rootProject.version
+
     apply(plugin = "org.jetbrains.kotlin.jvm")
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {

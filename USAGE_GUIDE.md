@@ -49,10 +49,10 @@ val connectionFactory = JdbcConnectionFactory(config)
 ### 1. Use Coroutines para Operações Assíncronas
 
 ```kotlin
-// ❌ Evite operações síncronas no thread principal
+// [AVOID] Evite operações síncronas no thread principal
 val users = select<User>(connectionFactory).execute()
 
-// ✅ Prefira operações assíncronas
+// [OK] Prefira operações assíncronas
 val users = select<User>(connectionFactory).executeAsync()
 ```
 
@@ -61,12 +61,12 @@ val users = select<User>(connectionFactory).executeAsync()
 O AggORM usa Prepared Statements automaticamente, mas sempre passe parâmetros corretamente:
 
 ```kotlin
-// ❌ NUNCA faça string interpolation em SQL
+// [AVOID] NUNCA faça string interpolation em SQL
 val email = userInput
 select<User>(connectionFactory)
     .where("email = '$email'") // VULNERÁVEL A SQL INJECTION!
 
-// ✅ Sempre use parâmetros
+// [OK] Sempre use parâmetros
 select<User>(connectionFactory)
     .where("email = ?", email) // Seguro
 ```
@@ -76,7 +76,7 @@ select<User>(connectionFactory)
 O `use` garante que as conexões sejam fechadas automaticamente:
 
 ```kotlin
-// ✅ O framework já usa `use` internamente
+// [OK] O framework já usa `use` internamente
 connectionFactory.open().use { connection ->
     // Sua operação aqui
 } // Conexão fechada automaticamente
@@ -104,7 +104,7 @@ class UserRepository(private val connectionFactory: JdbcConnectionFactory) {
 ### 5. Use Transações para Operações Múltiplas
 
 ```kotlin
-// ✅ Garante atomicidade
+// [OK] Garante atomicidade
 transaction(connectionFactory) {
     insert(user1, connectionFactory).executeAsync()
     insert(user2, connectionFactory).executeAsync()
@@ -263,7 +263,7 @@ select<User>(connectionFactory).limit(100).executeAsync()
 O AggORM protege automaticamente contra SQL Injection usando Prepared Statements:
 
 ```kotlin
-// ✅ Seguro - usa prepared statements
+// [OK] Seguro - usa prepared statements
 select<User>(connectionFactory)
     .where("email = ? AND age > ?", userEmail, minAge)
     .executeAsync()

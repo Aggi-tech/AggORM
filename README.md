@@ -400,12 +400,12 @@ val distinctQuery = select<User> {
 O AggORM usa prepared statements automaticamente para proteger contra SQL injection:
 
 ```kotlin
-// ✅ Seguro
+// [OK] Seguro
 where {
     User::email eq userInput  // Usa prepared statement
 }
 
-// ❌ Evite raw SQL com dados não validados
+// [AVOID] Evite raw SQL com dados não validados
 where {
     raw("email = '$userInput'")  // Vulnerável
 }
@@ -427,13 +427,13 @@ val dataSource = HikariDataSource(hikariConfig)
 ### 3. Use Transações para Operações Múltiplas
 
 ```kotlin
-// ✅ Atômico
+// [OK] Atômico
 transaction(connectionFactory) {
     insert<User>(...).execute()
     update<Order>(...).execute()
 }
 
-// ❌ Não atômico
+// [AVOID] Não atômico
 insert<User>(...).execute()
 update<Order>(...).execute()
 ```
@@ -868,14 +868,14 @@ eventSource.addEventListener('error', () => {
 
 ### Funcionalidades SSE
 
-- ✅ **Streaming básico**: Converte queries em eventos SSE
-- ✅ **Heartbeat automático**: Keep-alive configurável
-- ✅ **Retry automático**: Campo `retry:` para reconexão
-- ✅ **Event IDs**: Retomada após desconexão
-- ✅ **Tipos de eventos**: Filtragem por tipo no cliente
-- ✅ **Polling periódico**: Monitoramento em tempo real
-- ✅ **Connection pooling**: Alta performance
-- ✅ **Framework agnostic**: Core independente de frameworks
+- [OK] **Streaming básico**: Converte queries em eventos SSE
+- [OK] **Heartbeat automático**: Keep-alive configurável
+- [OK] **Retry automático**: Campo `retry:` para reconexão
+- [OK] **Event IDs**: Retomada após desconexão
+- [OK] **Tipos de eventos**: Filtragem por tipo no cliente
+- [OK] **Polling periódico**: Monitoramento em tempo real
+- [OK] **Connection pooling**: Alta performance
+- [OK] **Framework agnostic**: Core independente de frameworks
 
 ### Formato SSE
 

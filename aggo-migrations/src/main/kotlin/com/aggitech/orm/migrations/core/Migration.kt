@@ -206,6 +206,18 @@ class TableBuilder(private val name: String, private val schema: String) {
     }
 
     fun build(): MigrationOperation.CreateTable {
+        // Validate that all foreign key columns exist
+        val columnNames = columns.map { it.name }.toSet()
+        foreignKeys.forEach { fk ->
+            if (fk.columnName !in columnNames) {
+                throw MigrationException(
+                    "Foreign key references column '${fk.columnName}' which does not exist in table '$name'. " +
+                    "Make sure to add the column before creating the foreign key. " +
+                    "Example: column { uuid(\"${fk.columnName}\").notNull() }"
+                )
+            }
+        }
+
         return MigrationOperation.CreateTable(
             name = name,
             schema = schema,
