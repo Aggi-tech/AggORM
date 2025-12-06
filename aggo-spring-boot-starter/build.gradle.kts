@@ -21,12 +21,17 @@ dependencies {
     // Dependência do módulo migrations (opcional)
     api(project(":aggo-migrations"))
 
-    // Spring Boot e JPA (dependencies obrigatórias para o starter)
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa:3.2.0")
-    implementation("org.springframework:spring-context:6.1.0")
-    implementation("org.springframework:spring-tx:6.1.0")
-    implementation("jakarta.persistence:jakarta.persistence-api:3.1.0")
-    implementation("org.springframework.boot:spring-boot-autoconfigure:3.2.0")
+    // Spring Boot core (sem JPA - framework-agnostic)
+    // Using api to allow consumers to use these classes
+    api("org.springframework.boot:spring-boot-autoconfigure:3.2.0")
+    api("org.springframework:spring-context:6.1.0")
+    api("org.springframework:spring-tx:6.1.0")
+
+    // Spring Data Commons para compatibilidade com CrudRepository (opcional)
+    compileOnly("org.springframework.data:spring-data-commons:3.2.0")
+
+    // JPA é opcional - só para integração se o usuário já usar
+    compileOnly("jakarta.persistence:jakarta.persistence-api:3.1.0")
 
     // Configuration processor para gerar metadata de propriedades
     kapt("org.springframework.boot:spring-boot-configuration-processor:3.2.0")

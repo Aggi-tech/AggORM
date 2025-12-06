@@ -133,25 +133,8 @@ class JdbcMigrationExecutorTest {
         // Apply migration
         executor.migrate(listOf(migration1))
 
-        // Simulate modified migration by creating a new instance that will have different operations
-        val migration2 = object : Migration() {
-            override fun up() {
-                createTable("users") {
-                    column { bigInteger("id").primaryKey().autoIncrement() }
-                    column { varchar("name", 100).notNull() }
-                    column { varchar("email", 255).notNull().unique() }
-                    // MODIFIED: Added new column
-                    column { varchar("phone", 20) }
-                }
-            }
-
-            override fun down() {
-                dropTable("users")
-            }
-        }
-
-        // Manually set class name to match V001
-        val className = migration2.javaClass.name
+        // Use a modified version of the same migration class
+        val migration2 = V001_20231201_CreateUsersModified()
 
         try {
             executor.migrate(listOf(migration2))
@@ -284,5 +267,25 @@ class V004_20231204_ComplexMigration : Migration() {
 
     override fun down() {
         dropTable("products")
+    }
+}
+
+/**
+ * Modified version of V001 migration for checksum mismatch testing.
+ * Has same version (V001) and timestamp but different operations.
+ */
+class V001_20231201_CreateUsersModified : Migration() {
+    override fun up() {
+        createTable("users") {
+            column { bigInteger("id").primaryKey().autoIncrement() }
+            column { varchar("name", 100).notNull() }
+            column { varchar("email", 255).notNull().unique() }
+            // MODIFIED: Added new column
+            column { varchar("phone", 20) }
+        }
+    }
+
+    override fun down() {
+        dropTable("users")
     }
 }

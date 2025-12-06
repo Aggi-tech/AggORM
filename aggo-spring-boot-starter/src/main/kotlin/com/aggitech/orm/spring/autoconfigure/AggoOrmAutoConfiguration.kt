@@ -6,11 +6,11 @@ import com.aggitech.orm.enums.SupportedDatabases
 import com.aggitech.orm.jdbc.JdbcConnectionManager
 import com.aggitech.orm.spring.transaction.AggoTransactionManager
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.autoconfigure.AutoConfigureAfter
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -94,7 +94,8 @@ data class AggoOrmProperties(
  * JPA é completamente opcional - se presente, AggORM não interfere.
  * Se ausente, AggORM fornece seu próprio TransactionManager.
  */
-@AutoConfiguration(after = [DataSourceAutoConfiguration::class])
+@AutoConfiguration
+@AutoConfigureAfter(name = ["org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"])
 @ConditionalOnClass(DbConfig::class)
 @ConditionalOnProperty(prefix = "aggo.orm", name = ["enabled"], havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(AggoOrmProperties::class)
@@ -157,7 +158,11 @@ class AggoTransactionManagerConfiguration {
  *
  * Executa APÓS AggoOrmAutoConfiguration e DataSourceAutoConfiguration
  */
-@AutoConfiguration(after = [AggoOrmAutoConfiguration::class, DataSourceAutoConfiguration::class])
+@AutoConfiguration
+@AutoConfigureAfter(name = [
+    "com.aggitech.orm.spring.autoconfigure.AggoOrmAutoConfiguration",
+    "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
+])
 @ConditionalOnClass(DataSource::class)
 class AggoDataSourceConfiguration {
 
