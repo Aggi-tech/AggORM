@@ -1,7 +1,9 @@
 package com.aggitech.orm.migrations.core
 
+import com.aggitech.orm.core.metadata.EntityRegistry
 import com.aggitech.orm.migrations.dsl.PropertyUtils
 import java.security.MessageDigest
+import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 
 /**
@@ -125,6 +127,44 @@ abstract class Migration {
 
     protected fun executeSql(sql: String) {
         operations.add(MigrationOperation.ExecuteSql(sql))
+    }
+
+    // Type-safe DSL methods using KClass and KProperty
+
+    protected fun <T : Any> createTable(
+        entityClass: KClass<T>,
+        schema: String = "public",
+        block: TypedTableBuilder<T>.() -> Unit
+    ) {
+        val tableName = EntityRegistry.resolveTable(entityClass)
+        val builder = TypedTableBuilder(entityClass, tableName, schema)
+        builder.block()
+        operations.add(builder.build())
+    }
+
+    protected fun <T : Any> updateTable(
+        entityClass: KClass<T>,
+        schema: String = "public",
+        block: TypedTableUpdateBuilder<T>.() -> Unit
+    ) {
+        val tableName = EntityRegistry.resolveTable(entityClass)
+        val builder = TypedTableUpdateBuilder(entityClass, tableName, schema)
+        builder.block()
+        operations.addAll(builder.buildOperations())
+    }
+
+    protected fun <T : Any> dropTable(
+        entityClass: KClass<T>,
+        schema: String = "public",
+        ifExists: Boolean = true
+    ) {
+        val tableName = EntityRegistry.resolveTable(entityClass)
+        operations.add(MigrationOperation.DropTable(tableName, schema, ifExists))
+    }
+
+    protected fun transaction(block: () -> Unit) {
+        // Transactions are managed by the executor, this is just a DSL convenience
+        block()
     }
 }
 
@@ -318,6 +358,142 @@ class ColumnBuilder {
             primaryKey = primaryKey,
             autoIncrement = autoIncrement,
             defaultValue = defaultValue
+        )
+    }
+}
+
+/**
+ * Type-safe column builder for typed table DSL
+ * Returns ColumnDefinition directly for fluent chainable API
+ */
+class TypedColumnBuilder<T : Any> {
+    fun <R> uuid(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Uuid
+        )
+    }
+
+    fun <R> varchar(property: KProperty1<T, R>, length: Int = 255): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Varchar(length)
+        )
+    }
+
+    fun <R> text(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Text
+        )
+    }
+
+    fun <R> integer(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Integer
+        )
+    }
+
+    fun <R> bigInteger(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.BigInteger
+        )
+    }
+
+    fun <R> smallInteger(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.SmallInteger
+        )
+    }
+
+    fun <R> boolean(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Boolean
+        )
+    }
+
+    fun <R> timestamp(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Timestamp
+        )
+    }
+
+    fun <R> date(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Date
+        )
+    }
+
+    fun <R> time(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Time
+        )
+    }
+
+    fun <R> decimal(property: KProperty1<T, R>, precision: Int, scale: Int): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Decimal(precision, scale),
+            precision = precision,
+            scale = scale
+        )
+    }
+
+    fun <R> float(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Float
+        )
+    }
+
+    fun <R> double(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Double
+        )
+    }
+
+    fun <R> char(property: KProperty1<T, R>, length: Int): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Char(length),
+            length = length
+        )
+    }
+
+    fun <R> binary(property: KProperty1<T, R>, length: Int? = null): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Binary(length),
+            length = length
+        )
+    }
+
+    fun <R> blob(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Blob
+        )
+    }
+
+    fun <R> json(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Json
+        )
+    }
+
+    fun <R> jsonb(property: KProperty1<T, R>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Jsonb
         )
     }
 }
