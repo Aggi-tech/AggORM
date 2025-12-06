@@ -1,18 +1,39 @@
 name: Publish to Maven Central
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to publish (e.g., v1.4.0). Leave empty to use the latest tag.'
+        required: false
+        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version to publish
+        id: get-version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(git describe --tags --abbrev=0)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
+
+      - name: Checkout version tag
+        run: git checkout ${{ steps.get-version.outputs.version }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -36,7 +57,7 @@ jobs:
       - name: Create deployment bundle
         run: |
           # Extract version from tag (remove 'v' prefix)
-          VERSION="${{ github.ref_name }}"
+          VERSION="${{ steps.get-version.outputs.version }}"
           VERSION="${VERSION#v}"
           echo "Building bundle for version: $VERSION"
 
@@ -99,8 +120,10 @@ jobs:
 
       - name: Upload to Maven Central
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="${{ needs.build.outputs.version }}"
           VERSION="${VERSION#v}"
+
+          echo "Uploading version $VERSION to Maven Central..."
 
           RESPONSE=$(curl -X POST \
             -u "${{ secrets.OSSRH_USERNAME }}:${{ secrets.OSSRH_PASSWORD }}" \
@@ -110,6 +133,7 @@ jobs:
 
           echo "Deployment ID: $RESPONSE"
           echo "DEPLOYMENT_ID=$RESPONSE" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
           # Check if upload was successful
           if [ -z "$RESPONSE" ]; then
@@ -127,10 +151,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ needs.build.outputs.version }}
+          name: Release ${{ needs.build.outputs.version }}
           body: |
-            ## AggORM ${{ github.ref_name }}
+            ## AggORM ${{ needs.build.outputs.version }}
 
             Published to Maven Central with deployment ID: `${{ env.DEPLOYMENT_ID }}`
 
@@ -138,9 +162,9 @@ jobs:
 
             ```kotlin
             dependencies {
-                implementation("com.aggitech.orm:aggo-core:${GITHUB_REF_NAME#v}")
-                implementation("com.aggitech.orm:aggo-migrations:${GITHUB_REF_NAME#v}")
-                implementation("com.aggitech.orm:aggo-spring-boot-starter:${GITHUB_REF_NAME#v}")
+                implementation("com.aggitech.orm:aggo-core:${{ env.VERSION }}")
+                implementation("com.aggitech.orm:aggo-migrations:${{ env.VERSION }}")
+                implementation("com.aggitech.orm:aggo-spring-boot-starter:${{ env.VERSION }}")
             }
             ```
 
