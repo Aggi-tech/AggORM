@@ -52,12 +52,12 @@ class RenderContext(val dialect: SqlDialect) {
     }
 
     /**
-     * Retorna o nome qualificado de uma coluna (tabela.coluna) - DRY helper
+     * Retorna o nome qualificado de uma coluna (tabela.coluna) com aspas do dialeto
      */
     fun qualifyColumn(entity: KClass<*>, property: KProperty1<*, *>): String {
         val table = EntityRegistry.resolveTable(entity)
         val column = EntityRegistry.resolveColumn(property)
-        return "$table.$column"
+        return "${quote(table)}.${quote(column)}"
     }
 }
 

@@ -30,7 +30,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.name = ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"name\" = ?", rendered.sql)
         assertEquals(listOf("John"), rendered.parameters)
     }
 
@@ -43,7 +43,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.name != ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"name\" != ?", rendered.sql)
     }
 
     @Test
@@ -55,7 +55,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age > ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" > ?", rendered.sql)
     }
 
     @Test
@@ -67,7 +67,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age >= ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" >= ?", rendered.sql)
     }
 
     @Test
@@ -79,7 +79,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age < ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" < ?", rendered.sql)
     }
 
     @Test
@@ -91,7 +91,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age <= ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" <= ?", rendered.sql)
     }
 
     // ==================== Testes de WhereableBuilder em diferentes builders ====================
@@ -117,7 +117,7 @@ class WhereableBuilderTests {
         val rendered = renderer.render(query)
 
         assertTrue(rendered.sql.contains("WHERE"))
-        assertTrue(rendered.sql.contains("user.id = ?"))
+        assertTrue(rendered.sql.contains("\"user\".\"id\" = ?"))
     }
 
     @Test
@@ -129,7 +129,7 @@ class WhereableBuilderTests {
         val renderer = DeleteRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("DELETE FROM user WHERE user.age < ?", rendered.sql)
+        assertEquals("DELETE FROM \"user\" WHERE \"user\".\"age\" < ?", rendered.sql)
     }
 
     // ==================== Testes de Operadores Combinados ====================
@@ -143,7 +143,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE (user.age >= ? AND user.age <= ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE (\"user\".\"age\" >= ? AND \"user\".\"age\" <= ?)", rendered.sql)
         assertEquals(listOf(18, 65), rendered.parameters)
     }
 
@@ -156,7 +156,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE (user.name = ? OR user.name = ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE (\"user\".\"name\" = ? OR \"user\".\"name\" = ?)", rendered.sql)
     }
 
     @Test
@@ -168,7 +168,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE NOT (user.age < ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE NOT (\"user\".\"age\" < ?)", rendered.sql)
     }
 
     // ==================== Testes de Outros Operadores ====================
@@ -182,7 +182,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.email LIKE ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"email\" LIKE ?", rendered.sql)
     }
 
     @Test
@@ -194,7 +194,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.city_id IN (?, ?, ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"city_id\" IN (?, ?, ?)", rendered.sql)
     }
 
     @Test
@@ -206,7 +206,7 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.city_id IS NULL", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"city_id\" IS NULL", rendered.sql)
     }
 
     @Test
@@ -218,6 +218,6 @@ class WhereableBuilderTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age BETWEEN ? AND ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" BETWEEN ? AND ?", rendered.sql)
     }
 }

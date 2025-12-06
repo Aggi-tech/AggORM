@@ -18,7 +18,7 @@ class DeleteRenderer(
     override fun render(query: DeleteQuery<*>): RenderedSql {
         val context = RenderContext(dialect)
 
-        val tableName = EntityRegistry.resolveTable(query.from)
+        val tableName = context.quote(EntityRegistry.resolveTable(query.from))
 
         val sql = buildString {
             append("DELETE FROM $tableName")

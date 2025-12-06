@@ -40,7 +40,7 @@ class DSLTests {
         val rendered = renderer.render(query)
 
         assertTrue(rendered.sql.contains("COUNT(*)"))
-        assertTrue(rendered.sql.contains("AVG(user.age)"))
+        assertTrue(rendered.sql.contains("AVG(\"user\".\"age\")"))
     }
 
     @Test

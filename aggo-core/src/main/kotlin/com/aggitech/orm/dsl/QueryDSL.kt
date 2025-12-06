@@ -149,11 +149,14 @@ class SelectBuilder<T : Any>(private val entityClass: KClass<T>) {
 
     /**
      * Método auxiliar para criar campos de agregação (DRY)
+     * @param function A função de agregação a ser usada
+     * @param property A propriedade da entidade para agregar
+     * @param alias O alias obrigatório para o resultado da agregação
      */
-    private fun <R> aggregate(
+    private fun <R : Number> aggregate(
         function: com.aggitech.orm.query.model.field.AggregateFunction,
-        property: KProperty1<T, R>,
-        alias: String? = null
+        property: KProperty1<T, R?>,
+        alias: String
     ) {
         fields.add(
             SelectField.Aggregate(
@@ -179,12 +182,26 @@ class SelectBuilder<T : Any>(private val entityClass: KClass<T>) {
         fields.add(SelectField.All)
     }
 
-    /** COUNT de uma propriedade */
-    fun <R> count(property: KProperty1<T, R>, alias: String? = null) =
-        aggregate(com.aggitech.orm.query.model.field.AggregateFunction.COUNT, property, alias)
+    /**
+     * COUNT de uma propriedade específica
+     * @param property A propriedade a ser contada (valores não-nulos)
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R> count(property: KProperty1<T, R>, alias: String) {
+        fields.add(
+            SelectField.Aggregate(
+                function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT,
+                field = SelectField.Property(entityClass, property),
+                alias = alias
+            )
+        )
+    }
 
-    /** COUNT(*) */
-    fun countAll(alias: String? = null) {
+    /**
+     * COUNT(*) - conta todas as linhas
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun countAll(alias: String) {
         fields.add(
             SelectField.Aggregate(
                 function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT,
@@ -194,20 +211,51 @@ class SelectBuilder<T : Any>(private val entityClass: KClass<T>) {
         )
     }
 
-    /** SUM */
-    fun <R> sum(property: KProperty1<T, R>, alias: String? = null) =
+    /**
+     * COUNT(DISTINCT column) - conta valores únicos
+     * @param property A propriedade a ser contada (valores únicos não-nulos)
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R> countDistinct(property: KProperty1<T, R>, alias: String) {
+        fields.add(
+            SelectField.Aggregate(
+                function = com.aggitech.orm.query.model.field.AggregateFunction.COUNT_DISTINCT,
+                field = SelectField.Property(entityClass, property),
+                alias = alias
+            )
+        )
+    }
+
+    /**
+     * SUM - soma valores numéricos
+     * @param property A propriedade numérica a ser somada
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> sum(property: KProperty1<T, R?>, alias: String) =
         aggregate(com.aggitech.orm.query.model.field.AggregateFunction.SUM, property, alias)
 
-    /** AVG */
-    fun <R> avg(property: KProperty1<T, R>, alias: String? = null) =
+    /**
+     * AVG - calcula a média de valores numéricos
+     * @param property A propriedade numérica para calcular a média
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> avg(property: KProperty1<T, R?>, alias: String) =
         aggregate(com.aggitech.orm.query.model.field.AggregateFunction.AVG, property, alias)
 
-    /** MAX */
-    fun <R> max(property: KProperty1<T, R>, alias: String? = null) =
+    /**
+     * MAX - retorna o valor máximo
+     * @param property A propriedade numérica para encontrar o máximo
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> max(property: KProperty1<T, R?>, alias: String) =
         aggregate(com.aggitech.orm.query.model.field.AggregateFunction.MAX, property, alias)
 
-    /** MIN */
-    fun <R> min(property: KProperty1<T, R>, alias: String? = null) =
+    /**
+     * MIN - retorna o valor mínimo
+     * @param property A propriedade numérica para encontrar o mínimo
+     * @param alias Alias obrigatório para o resultado
+     */
+    fun <R : Number> min(property: KProperty1<T, R?>, alias: String) =
         aggregate(com.aggitech.orm.query.model.field.AggregateFunction.MIN, property, alias)
 }
 

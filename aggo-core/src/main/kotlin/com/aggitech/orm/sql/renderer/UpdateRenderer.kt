@@ -18,14 +18,14 @@ class UpdateRenderer(
     override fun render(query: UpdateQuery<*>): RenderedSql {
         val context = RenderContext(dialect)
 
-        val tableName = EntityRegistry.resolveTable(query.table)
+        val tableName = context.quote(EntityRegistry.resolveTable(query.table))
 
         if (query.updates.isEmpty()) {
             throw IllegalArgumentException("Cannot UPDATE without values")
         }
 
         val setClause = query.updates.entries.joinToString(", ") { (column, value) ->
-            "$column = ${context.addParameter(value)}"
+            "${context.quote(column)} = ${context.addParameter(value)}"
         }
 
         val sql = buildString {

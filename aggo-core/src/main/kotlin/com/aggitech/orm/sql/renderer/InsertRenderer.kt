@@ -17,13 +17,13 @@ class InsertRenderer(
     override fun render(query: InsertQuery<*>): RenderedSql {
         val context = RenderContext(dialect)
 
-        val tableName = EntityRegistry.resolveTable(query.into)
+        val tableName = context.quote(EntityRegistry.resolveTable(query.into))
 
         // Se values está vazio, tenta pegar os valores do objeto entity
         val values = if (query.values.isEmpty() && query.entity != null) {
-            extractValuesFromEntity(query.entity)
+            extractValuesFromEntity(query.entity, context)
         } else {
-            query.values
+            query.values.mapKeys { (key, _) -> context.quote(key) }
         }
 
         if (values.isEmpty()) {
@@ -43,11 +43,11 @@ class InsertRenderer(
     /**
      * Extrai valores de uma instância de entidade usando reflection
      */
-    private fun extractValuesFromEntity(entity: Any): Map<String, Any?> {
+    private fun extractValuesFromEntity(entity: Any, context: RenderContext): Map<String, Any?> {
         val values = mutableMapOf<String, Any?>()
 
         entity::class.memberProperties.forEach { prop ->
-            val columnName = EntityRegistry.resolveColumn(prop)
+            val columnName = context.quote(EntityRegistry.resolveColumn(prop))
             val value = prop.getter.call(entity)
 
             // Não inclui propriedades nulas que são chave primária auto-gerada

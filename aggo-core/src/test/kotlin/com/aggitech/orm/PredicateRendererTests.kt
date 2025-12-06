@@ -30,7 +30,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("user.name = ?", result)
+        assertEquals("\"user\".\"name\" = ?", result)
         assertEquals(1, ctx.parameters.size)
     }
 
@@ -74,7 +74,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("(user.age >= ? AND user.age <= ?)", result)
+        assertEquals("(\"user\".\"age\" >= ? AND \"user\".\"age\" <= ?)", result)
     }
 
     @Test
@@ -93,7 +93,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("(user.name = ? OR user.name = ?)", result)
+        assertEquals("(\"user\".\"name\" = ? OR \"user\".\"name\" = ?)", result)
     }
 
     @Test
@@ -107,7 +107,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("NOT (user.age < ?)", result)
+        assertEquals("NOT (\"user\".\"age\" < ?)", result)
     }
 
     @Test
@@ -118,7 +118,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("user.city_id IN (?, ?, ?)", result)
+        assertEquals("\"user\".\"city_id\" IN (?, ?, ?)", result)
     }
 
     @Test
@@ -130,7 +130,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("user.age BETWEEN ? AND ?", result)
+        assertEquals("\"user\".\"age\" BETWEEN ? AND ?", result)
     }
 
     @Test
@@ -140,7 +140,7 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("user.city_id IS NULL", result)
+        assertEquals("\"user\".\"city_id\" IS NULL", result)
     }
 
     @Test
@@ -151,6 +151,6 @@ class PredicateRendererTests {
         )
         val ctx = RenderContext(PostgresDialect)
         val result = renderer.render(predicate, ctx)
-        assertEquals("user.email LIKE ?", result)
+        assertEquals("\"user\".\"email\" LIKE ?", result)
     }
 }

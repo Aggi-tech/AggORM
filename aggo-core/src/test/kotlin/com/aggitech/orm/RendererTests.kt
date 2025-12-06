@@ -47,7 +47,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT user.name, user.email FROM user", rendered.sql)
+        assertEquals("SELECT \"user\".\"name\", \"user\".\"email\" FROM \"user\"", rendered.sql)
         assertTrue(rendered.parameters.isEmpty())
     }
 
@@ -65,7 +65,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age >= ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" >= ?", rendered.sql)
         assertEquals(listOf(18), rendered.parameters)
     }
 
@@ -88,7 +88,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE (user.age >= ? AND user.email LIKE ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE (\"user\".\"age\" >= ? AND \"user\".\"email\" LIKE ?)", rendered.sql)
         assertEquals(listOf(18, "%@gmail.com"), rendered.parameters)
     }
 
@@ -104,7 +104,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.city_id IN (?, ?, ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"city_id\" IN (?, ?, ?)", rendered.sql)
         assertEquals(listOf(1L, 2L, 3L), rendered.parameters)
     }
 
@@ -129,7 +129,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT COUNT(*) AS total, AVG(user.age) AS avg_age FROM user", rendered.sql)
+        assertEquals("SELECT COUNT(*) AS total, AVG(\"user\".\"age\") AS avg_age FROM \"user\"", rendered.sql)
     }
 
     @Test
@@ -145,7 +145,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user ORDER BY user.name ASC, user.age DESC", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" ORDER BY \"user\".\"name\" ASC, \"user\".\"age\" DESC", rendered.sql)
     }
 
     @Test
@@ -159,7 +159,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user LIMIT 10 OFFSET 20", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" LIMIT 10 OFFSET 20", rendered.sql)
     }
 
     @Test
@@ -205,7 +205,7 @@ class RendererTests {
         val renderer = InsertRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("INSERT INTO user (name, email, age) VALUES (?, ?, ?)", rendered.sql)
+        assertEquals("INSERT INTO \"user\" (\"name\", \"email\", \"age\") VALUES (?, ?, ?)", rendered.sql)
         assertEquals(listOf("John Doe", "john@example.com", 30), rendered.parameters)
     }
 
@@ -227,7 +227,7 @@ class RendererTests {
         val renderer = UpdateRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertTrue(rendered.sql.startsWith("UPDATE user SET"))
+        assertTrue(rendered.sql.startsWith("UPDATE \"user\" SET"))
         assertTrue(rendered.sql.contains("WHERE"))
         assertEquals(3, rendered.parameters.size) // 2 updates + 1 where
     }
@@ -246,7 +246,7 @@ class RendererTests {
         val renderer = DeleteRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("DELETE FROM user WHERE user.age < ?", rendered.sql)
+        assertEquals("DELETE FROM \"user\" WHERE \"user\".\"age\" < ?", rendered.sql)
         assertEquals(listOf(18), rendered.parameters)
     }
 
@@ -269,7 +269,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.age BETWEEN ? AND ?", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"age\" BETWEEN ? AND ?", rendered.sql)
         assertEquals(listOf(18, 65), rendered.parameters)
     }
 
@@ -284,7 +284,7 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE user.city_id IS NULL", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE \"user\".\"city_id\" IS NULL", rendered.sql)
         assertTrue(rendered.parameters.isEmpty())
     }
 
@@ -303,7 +303,27 @@ class RendererTests {
         val renderer = SelectRenderer(PostgresDialect)
         val rendered = renderer.render(query)
 
-        assertEquals("SELECT * FROM user WHERE NOT (user.age < ?)", rendered.sql)
+        assertEquals("SELECT * FROM \"user\" WHERE NOT (\"user\".\"age\" < ?)", rendered.sql)
         assertEquals(listOf(18), rendered.parameters)
+    }
+
+    @Test
+    fun `test SELECT with COUNT DISTINCT`() {
+        val query = SelectQuery(
+            from = User::class,
+            fields = listOf(
+                SelectField.Aggregate(
+                    function = AggregateFunction.COUNT_DISTINCT,
+                    field = SelectField.Property(User::class, User::cityId),
+                    alias = "distinct_cities"
+                )
+            )
+        )
+
+        val renderer = SelectRenderer(PostgresDialect)
+        val rendered = renderer.render(query)
+
+        assertEquals("SELECT COUNT(DISTINCT \"user\".\"city_id\") AS distinct_cities FROM \"user\"", rendered.sql)
+        assertTrue(rendered.parameters.isEmpty())
     }
 }

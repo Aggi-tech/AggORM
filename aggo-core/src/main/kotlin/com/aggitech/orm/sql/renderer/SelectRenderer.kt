@@ -4,6 +4,7 @@ import com.aggitech.orm.core.metadata.EntityRegistry
 import com.aggitech.orm.dsl.JoinClause
 import com.aggitech.orm.enums.SqlDialect
 import com.aggitech.orm.query.model.SelectQuery
+import com.aggitech.orm.query.model.field.AggregateFunction
 import com.aggitech.orm.query.model.field.SelectField
 import com.aggitech.orm.query.model.ordering.PropertyOrder
 import com.aggitech.orm.query.model.predicate.Predicate
@@ -91,7 +92,10 @@ class SelectRenderer(
                         SelectField.All -> "*"
                         else -> renderFields(listOf(innerField), fromClass, ctx)
                     }
-                    val agg = "${field.function.name}($inner)"
+                    val agg = when (field.function) {
+                        AggregateFunction.COUNT_DISTINCT -> "COUNT(DISTINCT $inner)"
+                        else -> "${field.function.name}($inner)"
+                    }
                     field.alias?.let { "$agg AS $it" } ?: agg
                 }
                 SelectField.All -> "*"
@@ -103,10 +107,10 @@ class SelectRenderer(
     }
 
     /**
-     * Renderiza o nome da tabela no FROM
+     * Renderiza o nome da tabela no FROM com aspas do dialeto
      */
     private fun renderTable(kClass: kotlin.reflect.KClass<*>, ctx: RenderContext): String {
-        return EntityRegistry.resolveTable(kClass)
+        return ctx.quote(EntityRegistry.resolveTable(kClass))
     }
 
     /**
