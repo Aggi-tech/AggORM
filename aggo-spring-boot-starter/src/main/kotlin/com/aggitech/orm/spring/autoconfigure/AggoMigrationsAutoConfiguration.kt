@@ -7,7 +7,6 @@ import com.aggitech.orm.migrations.executor.JdbcMigrationExecutor
 import com.aggitech.orm.migrations.executor.MigrationExecutor
 import com.aggitech.orm.migrations.executor.MigrationScanner
 import com.aggitech.orm.migrations.history.JdbcMigrationHistoryRepository
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -15,8 +14,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.ComponentScan
-import org.springframework.stereotype.Component
+import org.springframework.context.event.ContextRefreshedEvent
+import org.springframework.context.event.EventListener
 import java.sql.DriverManager
 import kotlin.reflect.KClass
 
@@ -73,9 +72,13 @@ data class AggoMigrationsProperties(
 @ConditionalOnClass(Migration::class)
 @ConditionalOnProperty(prefix = "aggo.orm.migrations", name = ["enabled"], havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(AggoMigrationsProperties::class)
-class AggoMigrationsAutoConfiguration {
+class AggoMigrationsAutoConfiguration(
+    private val properties: AggoMigrationsProperties
+) {
 
     private val logger = LoggerFactory.getLogger(AggoMigrationsAutoConfiguration::class.java)
+    private val migrationRegistry = MigrationRegistry()
+    private val migrationScanner = MigrationScanner()
 
     /**
      * Cria o bean do MigrationExecutor
@@ -96,61 +99,23 @@ class AggoMigrationsAutoConfiguration {
      * Cria o bean do MigrationScanner
      */
     @Bean
-    fun migrationScanner(): MigrationScanner {
-        return MigrationScanner()
-    }
-
-    /**
-     * Executor de migrations que roda na inicialização do Spring
-     */
-    @Bean
-    fun migrationRunner(
-        migrationExecutor: MigrationExecutor,
-        migrationScanner: MigrationScanner,
-        properties: AggoMigrationsProperties,
-        migrationRegistry: MigrationRegistry
-    ): MigrationRunner {
-        return MigrationRunner(migrationExecutor, migrationScanner, properties, migrationRegistry)
-    }
+    fun migrationScanner(): MigrationScanner = migrationScanner
 
     /**
      * Registry para coletar todas as migrations declaradas como beans
      */
     @Bean
-    fun migrationRegistry(): MigrationRegistry {
-        return MigrationRegistry()
-    }
-}
+    fun migrationRegistry(): MigrationRegistry = migrationRegistry
 
-/**
- * Registry que coleta automaticamente todas as migrations disponíveis
- */
-@Component
-class MigrationRegistry {
-    private val migrations = mutableListOf<KClass<out Migration>>()
-
-    fun register(migrationClass: KClass<out Migration>) {
-        migrations.add(migrationClass)
+    /**
+     * Executa migrations quando o contexto Spring é inicializado
+     */
+    @EventListener(ContextRefreshedEvent::class)
+    fun onApplicationEvent(event: ContextRefreshedEvent) {
+        runMigrations(event.applicationContext.getBean(MigrationExecutor::class.java))
     }
 
-    fun getAllMigrations(): List<KClass<out Migration>> = migrations.toList()
-}
-
-/**
- * Runner que executa as migrations automaticamente na inicialização
- */
-@Component
-class MigrationRunner(
-    private val migrationExecutor: MigrationExecutor,
-    private val migrationScanner: MigrationScanner,
-    private val properties: AggoMigrationsProperties,
-    private val migrationRegistry: MigrationRegistry
-) {
-
-    private val logger = LoggerFactory.getLogger(MigrationRunner::class.java)
-
-    @PostConstruct
-    fun runMigrations() {
+    private fun runMigrations(migrationExecutor: MigrationExecutor) {
         if (!properties.enabled) {
             logger.info("AggORM Migrations: Disabled via configuration")
             return
@@ -222,4 +187,18 @@ class MigrationRunner(
             }
         }
     }
+}
+
+/**
+ * Registry que coleta automaticamente todas as migrations disponíveis.
+ * Framework-agnostic - pode ser usado fora do Spring.
+ */
+class MigrationRegistry {
+    private val migrations = mutableListOf<KClass<out Migration>>()
+
+    fun register(migrationClass: KClass<out Migration>) {
+        migrations.add(migrationClass)
+    }
+
+    fun getAllMigrations(): List<KClass<out Migration>> = migrations.toList()
 }

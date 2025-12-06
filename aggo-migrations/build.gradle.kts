@@ -22,7 +22,9 @@ dependencies {
     implementation(gradleApi())
 
     testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.testcontainers:testcontainers:1.19.7")
+    testImplementation("org.testcontainers:junit-jupiter:1.19.7")
     testImplementation("org.testcontainers:postgresql:1.19.7")
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation("org.testcontainers:mysql:1.19.7")

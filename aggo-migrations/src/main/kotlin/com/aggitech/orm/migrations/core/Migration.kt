@@ -251,7 +251,116 @@ class ColumnBuilder {
     fun autoIncrement(): ColumnBuilder { autoIncrement = true; return this }
     fun default(value: String): ColumnBuilder { defaultValue = value; return this }
 
-    // Type helpers
+    // Type helpers with String column names (for raw migrations without entity classes)
+    fun varchar(columnName: String, length: Int = 255): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Varchar(length)
+        return this
+    }
+
+    fun bigInteger(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.BigInteger
+        return this
+    }
+
+    fun integer(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Integer
+        return this
+    }
+
+    fun timestamp(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Timestamp
+        return this
+    }
+
+    fun boolean(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Boolean
+        return this
+    }
+
+    fun text(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Text
+        return this
+    }
+
+    fun uuid(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Uuid
+        return this
+    }
+
+    fun char(columnName: String, length: Int): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Char(length)
+        return this
+    }
+
+    fun smallInteger(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.SmallInteger
+        return this
+    }
+
+    fun decimal(columnName: String, precision: Int, scale: Int): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Decimal(precision, scale)
+        return this
+    }
+
+    fun float(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Float
+        return this
+    }
+
+    fun double(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Double
+        return this
+    }
+
+    fun date(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Date
+        return this
+    }
+
+    fun time(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Time
+        return this
+    }
+
+    fun binary(columnName: String, length: Int? = null): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Binary(length)
+        return this
+    }
+
+    fun blob(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Blob
+        return this
+    }
+
+    fun json(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Json
+        return this
+    }
+
+    fun jsonb(columnName: String): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Jsonb
+        return this
+    }
+
+    // Type helpers with KProperty (for type-safe migrations with entity classes)
     fun <T, R> varchar(property: KProperty1<T, R>, length: Int = 255): ColumnBuilder {
         this.name = PropertyUtils.getColumnName(property)
         this.type = com.aggitech.orm.migrations.dsl.ColumnType.Varchar(length)
