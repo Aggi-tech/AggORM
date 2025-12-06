@@ -191,11 +191,11 @@ class ColumnBuilder {
     fun name(value: String) { name = value }
     fun type(value: com.aggitech.orm.migrations.dsl.ColumnType) { type = value }
     fun nullable(value: Boolean = true) { nullable = value }
-    fun notNull() { nullable = false }
-    fun unique() { unique = true }
-    fun primaryKey() { primaryKey = true }
-    fun autoIncrement() { autoIncrement = true }
-    fun default(value: String) { defaultValue = value }
+    fun notNull(): ColumnBuilder { nullable = false; return this }
+    fun unique(): ColumnBuilder { unique = true; return this }
+    fun primaryKey(): ColumnBuilder { primaryKey = true; return this }
+    fun autoIncrement(): ColumnBuilder { autoIncrement = true; return this }
+    fun default(value: String): ColumnBuilder { defaultValue = value; return this }
 
     // Type helpers
     fun varchar(name: String, length: Int = 255): ColumnBuilder {
@@ -231,6 +231,12 @@ class ColumnBuilder {
     fun text(name: String): ColumnBuilder {
         this.name = name
         this.type = com.aggitech.orm.migrations.dsl.ColumnType.Text
+        return this
+    }
+
+    fun uuid(name: String): ColumnBuilder {
+        this.name = name
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Uuid
         return this
     }
 
