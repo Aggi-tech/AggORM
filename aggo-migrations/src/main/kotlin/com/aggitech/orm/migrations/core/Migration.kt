@@ -1,7 +1,9 @@
 package com.aggitech.orm.migrations.core
 
 import com.aggitech.orm.core.metadata.EntityRegistry
+import com.aggitech.orm.migrations.dsl.AggORMTableBuilder
 import com.aggitech.orm.migrations.dsl.PropertyUtils
+import com.aggitech.orm.migrations.meta.TableMeta
 import java.security.MessageDigest
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
@@ -165,6 +167,104 @@ abstract class Migration {
     protected fun transaction(block: () -> Unit) {
         // Transactions are managed by the executor, this is just a DSL convenience
         block()
+    }
+
+    // ==================== Nova DSL table() ====================
+
+    /**
+     * Altera uma tabela usando TableMeta (type-safe).
+     * Recomendado para colunas que podem ser removidas da entidade.
+     *
+     * Exemplo:
+     * ```kotlin
+     * table(UsersTable) {
+     *     drop(UsersTable.OLD_FIELD)
+     *     add(UsersTable.NEW_FIELD)
+     * }
+     * ```
+     */
+    protected fun table(tableMeta: TableMeta, block: AggORMTableBuilder.() -> Unit) {
+        val builder = AggORMTableBuilder(tableMeta.tableName, tableMeta.schema)
+        builder.block()
+        operations.addAll(builder.build())
+    }
+
+    /**
+     * Altera uma tabela usando string (flexivel).
+     * Funciona sempre, independente de entidades.
+     *
+     * Exemplo:
+     * ```kotlin
+     * table("users") {
+     *     dropColumn("old_field")
+     *     addColumn("new_field") { varchar(100).notNull() }
+     * }
+     * ```
+     */
+    protected fun table(tableName: String, schema: String = "public", block: AggORMTableBuilder.() -> Unit) {
+        val builder = AggORMTableBuilder(tableName, schema)
+        builder.block()
+        operations.addAll(builder.build())
+    }
+
+    /**
+     * Cria uma tabela usando TableMeta.
+     * Todas as colunas do TableMeta sao adicionadas automaticamente.
+     *
+     * Exemplo:
+     * ```kotlin
+     * createTable(UsersTable)
+     * ```
+     */
+    protected fun createTable(tableMeta: TableMeta) {
+        val columns = tableMeta.columns.map { col ->
+            ColumnDefinition(
+                name = col.name,
+                type = col.type,
+                nullable = col.nullable,
+                unique = col.unique,
+                primaryKey = col.primaryKey,
+                autoIncrement = col.autoIncrement,
+                defaultValue = col.defaultValue
+            )
+        }
+
+        val primaryKeys = tableMeta.columns.filter { it.primaryKey }.map { it.name }
+
+        val foreignKeys = tableMeta.foreignKeyColumns().mapNotNull { col ->
+            col.references?.let { ref ->
+                ForeignKeyDefinition(
+                    name = "fk_${tableMeta.tableName}_${col.name}",
+                    columnName = col.name,
+                    referencedTable = ref.table,
+                    referencedColumn = ref.column,
+                    onDelete = ref.onDelete?.let { CascadeType.valueOf(it) },
+                    onUpdate = ref.onUpdate?.let { CascadeType.valueOf(it) }
+                )
+            }
+        }
+
+        operations.add(
+            MigrationOperation.CreateTable(
+                name = tableMeta.tableName,
+                schema = tableMeta.schema,
+                columns = columns,
+                primaryKeys = primaryKeys,
+                foreignKeys = foreignKeys
+            )
+        )
+    }
+
+    /**
+     * Remove uma tabela usando TableMeta.
+     *
+     * Exemplo:
+     * ```kotlin
+     * dropTable(UsersTable)
+     * ```
+     */
+    protected fun dropTable(tableMeta: TableMeta, ifExists: Boolean = true) {
+        operations.add(MigrationOperation.DropTable(tableMeta.tableName, tableMeta.schema, ifExists))
     }
 }
 
@@ -469,6 +569,36 @@ class ColumnBuilder {
         return this
     }
 
+    // Enum helpers with String column names
+    fun enum(columnName: String, typeName: String, values: List<String>): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Enum(typeName, values)
+        return this
+    }
+
+    fun enum(columnName: String, typeName: String, vararg values: String): ColumnBuilder {
+        return enum(columnName, typeName, values.toList())
+    }
+
+    fun <E : Enum<E>> enum(columnName: String, enumClass: Class<E>): ColumnBuilder {
+        this.name = columnName
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Enum.fromEnum(enumClass)
+        return this
+    }
+
+    // Enum helpers with KProperty
+    fun <T, R> enum(property: KProperty1<T, R>, typeName: String, values: List<String>): ColumnBuilder {
+        this.name = PropertyUtils.getColumnName(property)
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Enum(typeName, values)
+        return this
+    }
+
+    fun <T, R, E : Enum<E>> enum(property: KProperty1<T, R>, enumClass: Class<E>): ColumnBuilder {
+        this.name = PropertyUtils.getColumnName(property)
+        this.type = com.aggitech.orm.migrations.dsl.ColumnType.Enum.fromEnum(enumClass)
+        return this
+    }
+
     fun build(): ColumnDefinition {
         if (name.isEmpty()) throw MigrationException("Column name is required")
         return ColumnDefinition(
@@ -615,6 +745,20 @@ class TypedColumnBuilder<T : Any> {
         return ColumnDefinition(
             name = PropertyUtils.getColumnName(property),
             type = com.aggitech.orm.migrations.dsl.ColumnType.Jsonb
+        )
+    }
+
+    fun <R> enum(property: KProperty1<T, R>, typeName: String, values: List<String>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Enum(typeName, values)
+        )
+    }
+
+    fun <R, E : Enum<E>> enum(property: KProperty1<T, R>, enumClass: Class<E>): ColumnDefinition {
+        return ColumnDefinition(
+            name = PropertyUtils.getColumnName(property),
+            type = com.aggitech.orm.migrations.dsl.ColumnType.Enum.fromEnum(enumClass)
         )
     }
 }

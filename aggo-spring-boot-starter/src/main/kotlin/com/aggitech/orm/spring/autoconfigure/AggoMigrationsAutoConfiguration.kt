@@ -16,6 +16,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.event.ContextRefreshedEvent
 import org.springframework.context.event.EventListener
+import java.nio.file.Path
 import java.sql.DriverManager
 import kotlin.reflect.KClass
 
@@ -48,7 +49,37 @@ data class AggoMigrationsProperties(
     /**
      * Se true, valida checksums de migrations já aplicadas
      */
-    var validateChecksums: Boolean = true
+    var validateChecksums: Boolean = true,
+
+    /**
+     * Configuração para geração automática de TableMeta
+     */
+    var tableMeta: TableMetaProperties = TableMetaProperties()
+)
+
+/**
+ * Properties para geração automática de TableMeta
+ */
+data class TableMetaProperties(
+    /**
+     * Habilita a geração automática de TableMeta após migrations
+     */
+    var enabled: Boolean = false,
+
+    /**
+     * Pacote para os arquivos gerados (ex: "com.myapp.generated.tables")
+     */
+    var basePackage: String = "generated.tables",
+
+    /**
+     * Diretório de saída para os arquivos gerados (ex: "src/main/kotlin")
+     */
+    var outputDir: String = "src/main/kotlin",
+
+    /**
+     * Nome do schema do banco de dados (default: "public")
+     */
+    var schemaName: String = "public"
 )
 
 /**
@@ -92,7 +123,23 @@ class AggoMigrationsAutoConfiguration(
         )
 
         val historyRepository = JdbcMigrationHistoryRepository(connection, dialect)
-        return JdbcMigrationExecutor(connection, dialect, historyRepository)
+        val executor = JdbcMigrationExecutor(connection, dialect, historyRepository)
+
+        // Configura geração automática de TableMeta se habilitado
+        if (properties.tableMeta.enabled) {
+            val outputPath = Path.of(properties.tableMeta.outputDir)
+                .resolve(properties.tableMeta.basePackage.replace('.', '/'))
+
+            executor.enableTableMetaGeneration(
+                basePackage = properties.tableMeta.basePackage,
+                outputDir = outputPath,
+                schemaName = properties.tableMeta.schemaName
+            )
+
+            logger.info("AggORM Migrations: TableMeta generation enabled -> ${properties.tableMeta.basePackage}")
+        }
+
+        return executor
     }
 
     /**

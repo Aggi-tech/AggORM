@@ -23,9 +23,14 @@ class RenderContext(val dialect: SqlDialect) {
 
     /**
      * Adiciona um parâmetro e retorna o placeholder (?)
+     * Enums são automaticamente convertidos para String usando o nome da constante.
      */
     fun addParameter(value: Any?): String {
-        parameters.add(value)
+        val normalizedValue = when (value) {
+            is Enum<*> -> value.name
+            else -> value
+        }
+        parameters.add(normalizedValue)
         return "?"
     }
 

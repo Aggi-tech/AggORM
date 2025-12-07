@@ -77,6 +77,7 @@ object EntityMapper {
     /**
      * Converte um valor para o tipo esperado
      */
+    @Suppress("UNCHECKED_CAST")
     private fun convertValue(value: Any?, targetType: KClass<*>): Any? {
         if (value == null) return null
 
@@ -109,8 +110,14 @@ object EntityMapper {
                 else -> null
             }
             else -> {
+                // Suporte para Enums
+                if (targetType.java.isEnum) {
+                    val enumClass = targetType.java as Class<out Enum<*>>
+                    val enumName = value.toString()
+                    enumClass.enumConstants.firstOrNull { it.name == enumName }
+                }
                 // Tenta cast direto
-                if (targetType.isInstance(value)) {
+                else if (targetType.isInstance(value)) {
                     value
                 } else {
                     null

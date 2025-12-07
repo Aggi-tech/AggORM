@@ -3,10 +3,13 @@ package com.aggitech.orm.migrations.executor
 import com.aggitech.orm.enums.SqlDialect
 import com.aggitech.orm.migrations.core.Migration
 import com.aggitech.orm.migrations.core.MigrationException
+import com.aggitech.orm.migrations.generator.SchemaIntrospector
+import com.aggitech.orm.migrations.generator.TableMetaGenerator
 import com.aggitech.orm.migrations.history.JdbcMigrationHistoryRepository
 import com.aggitech.orm.migrations.history.MigrationRecord
 import com.aggitech.orm.migrations.history.MigrationStatus
 import com.aggitech.orm.migrations.renderer.MigrationRendererFactory
+import java.nio.file.Path
 import java.sql.Connection
 import java.time.Instant
 import kotlin.system.measureTimeMillis
@@ -27,9 +30,30 @@ class JdbcMigrationExecutor(
 
     private val renderer = MigrationRendererFactory.createRenderer(dialect)
 
+    /**
+     * Configuracao para geracao automatica de TableMeta.
+     * Se configurado, apos cada migration bem-sucedida os arquivos TableMeta serao regenerados.
+     */
+    var tableMetaConfig: TableMetaConfig? = null
+
     init {
         // Ensure history table exists
         historyRepository.ensureHistoryTableExists()
+    }
+
+    /**
+     * Configura a geracao automatica de TableMeta.
+     *
+     * @param basePackage Package dos arquivos gerados (ex: "com.myapp.generated.tables")
+     * @param outputDir Diretorio de saida (ex: Path.of("src/generated/tables"))
+     * @param schemaName Nome do schema (default: "public")
+     */
+    fun enableTableMetaGeneration(
+        basePackage: String,
+        outputDir: Path,
+        schemaName: String = "public"
+    ) {
+        tableMetaConfig = TableMetaConfig(basePackage, outputDir, schemaName)
     }
 
     override fun migrate(migrations: List<Migration>): MigrationResult {
@@ -88,7 +112,50 @@ class JdbcMigrationExecutor(
             }
         }
 
-        return MigrationResult(executed, failed, skipped)
+        val result = MigrationResult(executed, failed, skipped)
+
+        // Regenera TableMeta se configurado
+        if (tableMetaConfig != null) {
+            // Gera se houve novas migrations OU se os arquivos não existem ainda
+            val shouldGenerate = executed.isNotEmpty() || !tableMetaFilesExist()
+            if (shouldGenerate) {
+                regenerateTableMeta()
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Verifica se os arquivos TableMeta já existem
+     */
+    private fun tableMetaFilesExist(): Boolean {
+        val config = tableMetaConfig ?: return true
+        return config.outputDir.toFile().exists() &&
+               config.outputDir.toFile().listFiles()?.isNotEmpty() == true
+    }
+
+    /**
+     * Regenera os arquivos TableMeta baseado no schema atual do banco.
+     */
+    fun regenerateTableMeta() {
+        val config = tableMetaConfig ?: return
+
+        try {
+            val introspector = SchemaIntrospector(connection)
+            val schema = introspector.introspect(config.schemaName)
+
+            val generator = TableMetaGenerator(config.basePackage, config.outputDir)
+            val generatedFiles = generator.generate(schema)
+
+            // Log opcional
+            generatedFiles.forEach { file ->
+                println("[AggORM] Generated TableMeta: ${file.className} -> ${file.path}")
+            }
+        } catch (e: Exception) {
+            // Nao falha a migration por erro na geracao de TableMeta
+            System.err.println("[AggORM] Warning: Failed to generate TableMeta: ${e.message}")
+        }
     }
 
     private fun executeMigration(migration: Migration): Long {
@@ -389,3 +456,16 @@ class JdbcMigrationExecutor(
         }
     }
 }
+
+/**
+ * Configuracao para geracao automatica de TableMeta.
+ *
+ * @param basePackage Package dos arquivos gerados (ex: "com.myapp.generated.tables")
+ * @param outputDir Diretorio de saida (ex: Path.of("src/generated/tables"))
+ * @param schemaName Nome do schema do banco (default: "public")
+ */
+data class TableMetaConfig(
+    val basePackage: String,
+    val outputDir: Path,
+    val schemaName: String = "public"
+)

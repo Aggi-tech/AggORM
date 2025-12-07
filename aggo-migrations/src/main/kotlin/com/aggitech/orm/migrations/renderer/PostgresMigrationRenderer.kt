@@ -35,6 +35,16 @@ class PostgresMigrationRenderer : MigrationRenderer {
     private fun renderCreateTable(op: MigrationOperation.CreateTable): List<String> {
         val statements = mutableListOf<String>()
 
+        // Create ENUM types first (if any)
+        val enumTypes = op.columns
+            .map { it.type }
+            .filterIsInstance<ColumnType.Enum>()
+            .distinctBy { it.typeName }
+
+        enumTypes.forEach { enumType ->
+            statements.add(renderCreateEnumType(enumType))
+        }
+
         val tableName = qualifiedTableName(op.schema, op.name)
         val columnDefs = op.columns.joinToString(",\n  ") { renderColumnDefinition(it) }
 
@@ -98,6 +108,8 @@ class PostgresMigrationRenderer : MigrationRenderer {
             is ColumnType.Integer -> "INTEGER"
             is ColumnType.BigInteger -> "BIGINT"
             is ColumnType.SmallInteger -> "SMALLINT"
+            is ColumnType.Serial -> "SERIAL"
+            is ColumnType.BigSerial -> "BIGSERIAL"
             is ColumnType.Boolean -> "BOOLEAN"
             is ColumnType.Decimal -> "DECIMAL(${type.precision}, ${type.scale})"
             is ColumnType.Float -> "REAL"
@@ -105,12 +117,19 @@ class PostgresMigrationRenderer : MigrationRenderer {
             is ColumnType.Date -> "DATE"
             is ColumnType.Time -> "TIME"
             is ColumnType.Timestamp -> "TIMESTAMP"
+            is ColumnType.TimestampTz -> "TIMESTAMPTZ"
             is ColumnType.Binary -> if (type.length != null) "BYTEA" else "BYTEA"
             is ColumnType.Blob -> "BYTEA"
             is ColumnType.Json -> "JSON"
             is ColumnType.Jsonb -> "JSONB"
             is ColumnType.Uuid -> "UUID"
+            is ColumnType.Enum -> type.typeName
         }
+    }
+
+    private fun renderCreateEnumType(enumType: ColumnType.Enum): String {
+        val values = enumType.values.joinToString(", ") { "'$it'" }
+        return "DO $$ BEGIN CREATE TYPE ${enumType.typeName} AS ENUM ($values); EXCEPTION WHEN duplicate_object THEN null; END $$"
     }
 
     private fun renderDropTable(op: MigrationOperation.DropTable): List<String> {
