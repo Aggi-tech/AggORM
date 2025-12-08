@@ -92,7 +92,7 @@ class TableMetaGenerator(
 
         // Columns
         table.columns.forEach { col ->
-            val constName = col.name.toScreamingSnakeCase()
+            val constName = col.name.toCamelCase()
             val typeCall = columnTypeToCall(col.type, col.name)
             val modifiers = buildModifiers(col, table)
             sb.appendLine("    val $constName = $typeCall$modifiers")
@@ -180,11 +180,16 @@ class TableMetaGenerator(
     }
 
     /**
-     * Converte snake_case para SCREAMING_SNAKE_CASE
-     * Exemplo: "user_id" -> "USER_ID"
+     * Converte snake_case para camelCase
+     * Exemplo: "first_name" -> "firstName"
      */
-    private fun String.toScreamingSnakeCase(): String {
-        return this.uppercase()
+    private fun String.toCamelCase(): String {
+        return this.split("_")
+            .mapIndexed { index, part ->
+                if (index == 0) part.lowercase()
+                else part.replaceFirstChar { c -> c.uppercase() }
+            }
+            .joinToString("")
     }
 }
 

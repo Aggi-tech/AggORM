@@ -153,6 +153,65 @@ enum class OrderDirection { ASC, DESC }
 fun ColumnRef.asc(): ColumnOrder = ColumnOrder(this, OrderDirection.ASC)
 fun ColumnRef.desc(): ColumnOrder = ColumnOrder(this, OrderDirection.DESC)
 
+// ==================== DSL Builders ====================
+
+/**
+ * Builder para ORDER BY usando DSL block-based.
+ *
+ * Uso:
+ * ```kotlin
+ * orderBy {
+ *     +UsersTable.firstName.asc()
+ *     +UsersTable.createdAt.desc()
+ * }
+ * ```
+ */
+class TableOrderByBuilder {
+    internal val orderings = mutableListOf<ColumnOrder>()
+
+    operator fun ColumnOrder.unaryPlus() {
+        orderings.add(this)
+    }
+}
+
+/**
+ * Builder para GROUP BY usando DSL block-based.
+ *
+ * Uso:
+ * ```kotlin
+ * groupBy {
+ *     +UsersTable.status
+ *     +UsersTable.role
+ * }
+ * ```
+ */
+class TableGroupByBuilder {
+    internal val columns = mutableListOf<ColumnRef>()
+
+    operator fun ColumnRef.unaryPlus() {
+        columns.add(this)
+    }
+}
+
+/**
+ * Builder para RETURNING usando DSL block-based.
+ *
+ * Uso:
+ * ```kotlin
+ * returning {
+ *     +UsersTable.id
+ *     +UsersTable.firstName
+ * }
+ * ```
+ */
+class TableReturningBuilder {
+    internal val columns = mutableListOf<ColumnRef>()
+
+    operator fun ColumnRef.unaryPlus() {
+        columns.add(this)
+    }
+}
+
 // ==================== Where Builder ====================
 
 class TableWhereBuilder {
@@ -253,12 +312,6 @@ class TableSelectBuilder(private val table: Table) {
     private var offsetValue: Int? = null
     private var distinctFlag = false
 
-    /** Select specific columns */
-    fun select(vararg cols: ColumnRef): TableSelectBuilder {
-        cols.forEach { selectFields.add(SelectExpression.Col(it)) }
-        return this
-    }
-
     /** Select using DSL block with aggregations */
     fun select(block: TableSelectFieldBuilder.() -> Unit): TableSelectBuilder {
         val builder = TableSelectFieldBuilder()
@@ -303,8 +356,10 @@ class TableSelectBuilder(private val table: Table) {
         return this
     }
 
-    fun groupBy(vararg cols: ColumnRef): TableSelectBuilder {
-        groupByColumns.addAll(cols)
+    fun groupBy(block: TableGroupByBuilder.() -> Unit): TableSelectBuilder {
+        val builder = TableGroupByBuilder()
+        builder.block()
+        groupByColumns.addAll(builder.columns)
         return this
     }
 
@@ -313,8 +368,10 @@ class TableSelectBuilder(private val table: Table) {
         return this
     }
 
-    fun orderBy(vararg orders: ColumnOrder): TableSelectBuilder {
-        orderByList.addAll(orders)
+    fun orderBy(block: TableOrderByBuilder.() -> Unit): TableSelectBuilder {
+        val builder = TableOrderByBuilder()
+        builder.block()
+        orderByList.addAll(builder.orderings)
         return this
     }
 
@@ -615,8 +672,10 @@ class TableInsertBuilder(private val table: Table) {
     }
 
     /** RETURNING clause (PostgreSQL) */
-    fun returning(vararg cols: ColumnRef): TableInsertBuilder {
-        returningColumns.addAll(cols)
+    fun returning(block: TableReturningBuilder.() -> Unit): TableInsertBuilder {
+        val builder = TableReturningBuilder()
+        builder.block()
+        returningColumns.addAll(builder.columns)
         return this
     }
 
@@ -727,8 +786,10 @@ class TableUpdateBuilder(private val table: Table) {
     }
 
     /** RETURNING clause (PostgreSQL) */
-    fun returning(vararg cols: ColumnRef): TableUpdateBuilder {
-        returningColumns.addAll(cols)
+    fun returning(block: TableReturningBuilder.() -> Unit): TableUpdateBuilder {
+        val builder = TableReturningBuilder()
+        builder.block()
+        returningColumns.addAll(builder.columns)
         return this
     }
 
@@ -863,8 +924,10 @@ class TableDeleteBuilder(private val table: Table) {
     }
 
     /** RETURNING clause (PostgreSQL) */
-    fun returning(vararg cols: ColumnRef): TableDeleteBuilder {
-        returningColumns.addAll(cols)
+    fun returning(block: TableReturningBuilder.() -> Unit): TableDeleteBuilder {
+        val builder = TableReturningBuilder()
+        builder.block()
+        returningColumns.addAll(builder.columns)
         return this
     }
 
@@ -1108,8 +1171,10 @@ class TableUpdateDslBuilder(private val table: Table) {
     /**
      * RETURNING clause (PostgreSQL)
      */
-    fun returning(vararg cols: ColumnRef) {
-        returningColumns.addAll(cols)
+    fun returning(block: TableReturningBuilder.() -> Unit) {
+        val builder = TableReturningBuilder()
+        builder.block()
+        returningColumns.addAll(builder.columns)
     }
 
     @PublishedApi
@@ -1118,7 +1183,7 @@ class TableUpdateDslBuilder(private val table: Table) {
         updates.forEach { (col, value) -> builder.set(col, value) }
         predicate?.let { builder.where { it } }
         if (returningColumns.isNotEmpty()) {
-            builder.returning(*returningColumns.toTypedArray())
+            builder.returning { returningColumns.forEach { +it } }
         }
         return builder
     }

@@ -18,6 +18,7 @@ import com.aggitech.orm.table.ColumnRef
 data class ColumnMeta(
     override val name: String,
     val type: ColumnType,
+    override val tableName: String = "",
     val nullable: Boolean = true,
     val primaryKey: Boolean = false,
     val unique: Boolean = false,
@@ -66,19 +67,6 @@ data class ColumnMeta(
      */
     fun references(column: ColumnMeta, onDelete: String? = null, onUpdate: String? = null): ColumnMeta =
         copy(references = ForeignKeyMeta(column.tableName, column.name, onDelete, onUpdate))
-
-    /**
-     * Nome da tabela pai (preenchido pelo TableMeta)
-     */
-    @Transient
-    private var _tableName: String = ""
-
-    override val tableName: String
-        get() = _tableName
-
-    internal fun setTableName(name: String) {
-        _tableName = name
-    }
 }
 
 /**

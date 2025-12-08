@@ -75,8 +75,7 @@ abstract class TableMeta(
             .filter { it.returnType.classifier == ColumnMeta::class }
             .mapNotNull { prop ->
                 @Suppress("UNCHECKED_CAST")
-                val column = (prop as KProperty1<TableMeta, ColumnMeta>).get(this)
-                column.also { it.setTableName(tableName) }
+                (prop as KProperty1<TableMeta, ColumnMeta>).get(this)
             }
     }
 
@@ -85,58 +84,58 @@ abstract class TableMeta(
     // Override dos métodos de Table para retornar ColumnMeta
 
     override fun uuid(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Uuid)
+        ColumnMeta(name, ColumnType.Uuid, tableName)
 
     override fun varchar(name: String, length: Int): ColumnMeta =
-        ColumnMeta(name, ColumnType.Varchar(length))
+        ColumnMeta(name, ColumnType.Varchar(length), tableName)
 
     override fun char(name: String, length: Int): ColumnMeta =
-        ColumnMeta(name, ColumnType.Char(length))
+        ColumnMeta(name, ColumnType.Char(length), tableName)
 
     override fun text(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Text)
+        ColumnMeta(name, ColumnType.Text, tableName)
 
     override fun integer(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Integer)
+        ColumnMeta(name, ColumnType.Integer, tableName)
 
     override fun bigint(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.BigInteger)
+        ColumnMeta(name, ColumnType.BigInteger, tableName)
 
     override fun smallint(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.SmallInteger)
+        ColumnMeta(name, ColumnType.SmallInteger, tableName)
 
     override fun boolean(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Boolean)
+        ColumnMeta(name, ColumnType.Boolean, tableName)
 
     override fun timestamp(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Timestamp)
+        ColumnMeta(name, ColumnType.Timestamp, tableName)
 
     override fun date(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Date)
+        ColumnMeta(name, ColumnType.Date, tableName)
 
     override fun time(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Time)
+        ColumnMeta(name, ColumnType.Time, tableName)
 
     override fun decimal(name: String, precision: Int, scale: Int): ColumnMeta =
-        ColumnMeta(name, ColumnType.Decimal(precision, scale))
+        ColumnMeta(name, ColumnType.Decimal(precision, scale), tableName)
 
     override fun float(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Float)
+        ColumnMeta(name, ColumnType.Float, tableName)
 
     override fun double(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Double)
+        ColumnMeta(name, ColumnType.Double, tableName)
 
     override fun binary(name: String, length: Int?): ColumnMeta =
-        ColumnMeta(name, ColumnType.Binary(length))
+        ColumnMeta(name, ColumnType.Binary(length), tableName)
 
     override fun blob(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Blob)
+        ColumnMeta(name, ColumnType.Blob, tableName)
 
     override fun json(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Json)
+        ColumnMeta(name, ColumnType.Json, tableName)
 
     override fun jsonb(name: String): ColumnMeta =
-        ColumnMeta(name, ColumnType.Jsonb)
+        ColumnMeta(name, ColumnType.Jsonb, tableName)
 
     /**
      * Encontra uma coluna pelo nome
