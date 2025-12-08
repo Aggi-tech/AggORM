@@ -2,6 +2,7 @@ package com.aggitech.orm.table
 
 import com.aggitech.orm.jdbc.JdbcConnectionManager
 import com.aggitech.orm.mapping.EntityMapper
+import com.aggitech.orm.security.SqlSecurity
 import com.aggitech.orm.sql.context.RenderedSql
 import kotlin.reflect.KClass
 
@@ -12,6 +13,34 @@ import kotlin.reflect.KClass
 interface ColumnRef {
     val name: String
     val tableName: String
+}
+
+// ==================== Security Helpers ====================
+
+/**
+ * Safely quotes an identifier after validation.
+ * Uses double quotes (SQL standard) for identifiers.
+ */
+private fun safeQuote(identifier: String, type: String = "identifier"): String {
+    SqlSecurity.validateIdentifier(identifier, type)
+    return "\"$identifier\""
+}
+
+/**
+ * Safely quotes a column reference (table.column format).
+ */
+private fun ColumnRef.safeRef(): String {
+    SqlSecurity.validateIdentifier(tableName, "table name")
+    SqlSecurity.validateIdentifier(name, "column name")
+    return "\"$tableName\".\"$name\""
+}
+
+/**
+ * Validates and quotes an alias.
+ */
+private fun safeAlias(alias: String): String {
+    SqlSecurity.validateAlias(alias)
+    return "\"$alias\""
 }
 
 /**
@@ -320,8 +349,8 @@ class TableSelectBuilder(private val table: Table) {
             sql.append(selectFields.joinToString(", ") { renderSelectExpression(it) })
         }
 
-        // FROM
-        sql.append(" FROM \"${table.tableName}\"")
+        // FROM - validate table name
+        sql.append(" FROM ${safeQuote(table.tableName, "table name")}")
 
         // JOINs
         for (join in joins) {
@@ -331,7 +360,7 @@ class TableSelectBuilder(private val table: Table) {
                 JoinType.RIGHT -> "RIGHT JOIN"
                 JoinType.FULL -> "FULL OUTER JOIN"
             }
-            sql.append(" $joinKeyword \"${join.table.tableName}\" ON ")
+            sql.append(" $joinKeyword ${safeQuote(join.table.tableName, "join table name")} ON ")
             appendPredicate(sql, params, join.condition)
         }
 
@@ -341,10 +370,10 @@ class TableSelectBuilder(private val table: Table) {
             appendPredicate(sql, params, predicate!!)
         }
 
-        // GROUP BY
+        // GROUP BY - validate column references
         if (groupByColumns.isNotEmpty()) {
             sql.append(" GROUP BY ")
-            sql.append(groupByColumns.joinToString(", ") { "\"${it.tableName}\".\"${it.name}\"" })
+            sql.append(groupByColumns.joinToString(", ") { it.safeRef() })
         }
 
         // HAVING
@@ -353,20 +382,20 @@ class TableSelectBuilder(private val table: Table) {
             appendPredicate(sql, params, havingPredicate!!)
         }
 
-        // ORDER BY
+        // ORDER BY - validate column references
         if (orderByList.isNotEmpty()) {
             sql.append(" ORDER BY ")
             sql.append(orderByList.joinToString(", ") {
-                "\"${it.column.tableName}\".\"${it.column.name}\" ${it.direction.name}"
+                "${it.column.safeRef()} ${it.direction.name}"
             })
         }
 
-        // LIMIT
+        // LIMIT - validated as integer (no injection risk)
         if (limitValue != null) {
             sql.append(" LIMIT $limitValue")
         }
 
-        // OFFSET
+        // OFFSET - validated as integer (no injection risk)
         if (offsetValue != null) {
             sql.append(" OFFSET $offsetValue")
         }
@@ -376,8 +405,8 @@ class TableSelectBuilder(private val table: Table) {
 
     private fun renderSelectExpression(expr: SelectExpression): String {
         return when (expr) {
-            is SelectExpression.Col -> "\"${expr.column.tableName}\".\"${expr.column.name}\""
-            is SelectExpression.ColAlias -> "\"${expr.column.tableName}\".\"${expr.column.name}\" AS \"${expr.alias}\""
+            is SelectExpression.Col -> expr.column.safeRef()
+            is SelectExpression.ColAlias -> "${expr.column.safeRef()} AS ${safeAlias(expr.alias)}"
             is SelectExpression.All -> "*"
             is SelectExpression.Aggregate -> {
                 val funcName = when (expr.function) {
@@ -388,15 +417,18 @@ class TableSelectBuilder(private val table: Table) {
                     AggregateFunction.MIN -> "MIN"
                     AggregateFunction.MAX -> "MAX"
                 }
-                val colRef = if (expr.column == null) "*" else "\"${expr.column.tableName}\".\"${expr.column.name}\""
+                val colRef = if (expr.column == null) "*" else expr.column.safeRef()
+                val aliasQuoted = safeAlias(expr.alias)
                 if (expr.function == AggregateFunction.COUNT_DISTINCT) {
-                    "$funcName $colRef) AS \"${expr.alias}\""
+                    "$funcName $colRef) AS $aliasQuoted"
                 } else {
-                    "$funcName($colRef) AS \"${expr.alias}\""
+                    "$funcName($colRef) AS $aliasQuoted"
                 }
             }
             is SelectExpression.Raw -> {
-                if (expr.alias != null) "${expr.sql} AS \"${expr.alias}\"" else expr.sql
+                // Validate raw SQL for dangerous patterns
+                SqlSecurity.validateRawSql(expr.sql)
+                if (expr.alias != null) "${expr.sql} AS ${safeAlias(expr.alias)}" else expr.sql
             }
         }
     }
@@ -434,6 +466,49 @@ class TableSelectBuilder(private val table: Table) {
         return execute().map { EntityMapper.map(it, T::class) }
     }
 
+    /**
+     * Execute query and map to DTOs/Projections.
+     *
+     * Supports both classes (data classes) and interfaces.
+     *
+     * Usage with data class:
+     * ```kotlin
+     * data class UserSummary(val id: UUID, val name: String)
+     *
+     * val summaries = select(UsersTable)
+     *     .select(UsersTable.ID, UsersTable.NAME)
+     *     .executeAsProjection<UserSummary>()
+     * ```
+     *
+     * Usage with interface:
+     * ```kotlin
+     * interface UserNameOnly {
+     *     val name: String
+     * }
+     *
+     * val names = select(UsersTable)
+     *     .select(UsersTable.NAME)
+     *     .executeAsProjection<UserNameOnly>()
+     * ```
+     */
+    inline fun <reified T : Any> executeAsProjection(): List<T> {
+        return execute().map { EntityMapper.map(it, T::class) }
+    }
+
+    /**
+     * Execute query and map to DTO/Projection using explicit class.
+     *
+     * Usage:
+     * ```kotlin
+     * val summaries = select(UsersTable)
+     *     .select(UsersTable.ID, UsersTable.NAME)
+     *     .executeAsProjection(UserSummary::class)
+     * ```
+     */
+    fun <T : Any> executeAsProjection(projectionClass: KClass<T>): List<T> {
+        return execute().map { EntityMapper.map(it, projectionClass) }
+    }
+
     /** Execute query and return single result or null */
     fun executeOne(): Map<String, Any?>? {
         return limit(1).execute().firstOrNull()
@@ -444,35 +519,55 @@ class TableSelectBuilder(private val table: Table) {
         return executeOne()?.let { EntityMapper.map(it, T::class) }
     }
 
+    /**
+     * Execute query and map single result to DTO/Projection or null.
+     */
+    inline fun <reified T : Any> executeOneAsProjection(): T? {
+        return executeOne()?.let { EntityMapper.map(it, T::class) }
+    }
+
+    /**
+     * Execute query and map single result to DTO/Projection or null using explicit class.
+     */
+    fun <T : Any> executeOneAsProjection(projectionClass: KClass<T>): T? {
+        return executeOne()?.let { EntityMapper.map(it, projectionClass) }
+    }
+
     private fun appendPredicate(sql: StringBuilder, params: MutableList<Any?>, pred: TablePredicate) {
         when (pred) {
             is TablePredicate.Comparison -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" ${pred.operator} ?")
+                sql.append("${pred.column.safeRef()} ${pred.operator} ?")
+                SqlSecurity.validateValue(pred.value)
                 params.add(pred.value)
             }
             is TablePredicate.ColumnComparison -> {
-                sql.append("\"${pred.left.tableName}\".\"${pred.left.name}\" ${pred.operator} \"${pred.right.tableName}\".\"${pred.right.name}\"")
+                sql.append("${pred.left.safeRef()} ${pred.operator} ${pred.right.safeRef()}")
             }
             is TablePredicate.In -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IN (${pred.values.joinToString(",") { "?" }})")
+                sql.append("${pred.column.safeRef()} IN (${pred.values.joinToString(",") { "?" }})")
+                pred.values.forEach { SqlSecurity.validateValue(it) }
                 params.addAll(pred.values)
             }
             is TablePredicate.NotIn -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" NOT IN (${pred.values.joinToString(",") { "?" }})")
+                sql.append("${pred.column.safeRef()} NOT IN (${pred.values.joinToString(",") { "?" }})")
+                pred.values.forEach { SqlSecurity.validateValue(it) }
                 params.addAll(pred.values)
             }
             is TablePredicate.IsNull -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IS NULL")
+                sql.append("${pred.column.safeRef()} IS NULL")
             }
             is TablePredicate.IsNotNull -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IS NOT NULL")
+                sql.append("${pred.column.safeRef()} IS NOT NULL")
             }
             is TablePredicate.Like -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" LIKE ?")
+                sql.append("${pred.column.safeRef()} LIKE ?")
+                SqlSecurity.validateLikePattern(pred.pattern)
                 params.add(pred.pattern)
             }
             is TablePredicate.Between -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" BETWEEN ? AND ?")
+                sql.append("${pred.column.safeRef()} BETWEEN ? AND ?")
+                SqlSecurity.validateValue(pred.lower)
+                SqlSecurity.validateValue(pred.upper)
                 params.add(pred.lower)
                 params.add(pred.upper)
             }
@@ -530,17 +625,19 @@ class TableInsertBuilder(private val table: Table) {
         val sql = StringBuilder()
         val params = mutableListOf<Any?>()
 
-        sql.append("INSERT INTO \"${table.tableName}\" (")
-        sql.append(columns.joinToString(", ") { "\"${it.name}\"" })
+        sql.append("INSERT INTO ${safeQuote(table.tableName, "table name")} (")
+        sql.append(columns.joinToString(", ") { safeQuote(it.name, "column name") })
         sql.append(") VALUES (")
         sql.append(columns.joinToString(", ") { "?" })
         sql.append(")")
 
+        // Validate values before adding to params
+        columnValues.values.forEach { SqlSecurity.validateValue(it) }
         params.addAll(columnValues.values)
 
         if (returningColumns.isNotEmpty()) {
             sql.append(" RETURNING ")
-            sql.append(returningColumns.joinToString(", ") { "\"${it.name}\"" })
+            sql.append(returningColumns.joinToString(", ") { safeQuote(it.name, "column name") })
         }
 
         return RenderedSql(sql.toString(), params)
@@ -639,8 +736,11 @@ class TableUpdateBuilder(private val table: Table) {
         val sql = StringBuilder()
         val params = mutableListOf<Any?>()
 
-        sql.append("UPDATE \"${table.tableName}\" SET ")
-        sql.append(updates.entries.joinToString(", ") { "\"${it.key.name}\" = ?" })
+        sql.append("UPDATE ${safeQuote(table.tableName, "table name")} SET ")
+        sql.append(updates.entries.joinToString(", ") { "${safeQuote(it.key.name, "column name")} = ?" })
+
+        // Validate values before adding to params
+        updates.values.forEach { SqlSecurity.validateValue(it) }
         params.addAll(updates.values)
 
         if (predicate != null) {
@@ -650,7 +750,7 @@ class TableUpdateBuilder(private val table: Table) {
 
         if (returningColumns.isNotEmpty()) {
             sql.append(" RETURNING ")
-            sql.append(returningColumns.joinToString(", ") { "\"${it.name}\"" })
+            sql.append(returningColumns.joinToString(", ") { safeQuote(it.name, "column name") })
         }
 
         return RenderedSql(sql.toString(), params)
@@ -697,28 +797,34 @@ class TableUpdateBuilder(private val table: Table) {
     private fun appendPredicate(sql: StringBuilder, params: MutableList<Any?>, pred: TablePredicate) {
         when (pred) {
             is TablePredicate.Comparison -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" ${pred.operator} ?")
+                sql.append("${pred.column.safeRef()} ${pred.operator} ?")
+                SqlSecurity.validateValue(pred.value)
                 params.add(pred.value)
             }
             is TablePredicate.ColumnComparison -> {
-                sql.append("\"${pred.left.tableName}\".\"${pred.left.name}\" ${pred.operator} \"${pred.right.tableName}\".\"${pred.right.name}\"")
+                sql.append("${pred.left.safeRef()} ${pred.operator} ${pred.right.safeRef()}")
             }
             is TablePredicate.In -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IN (${pred.values.joinToString(",") { "?" }})")
+                sql.append("${pred.column.safeRef()} IN (${pred.values.joinToString(",") { "?" }})")
+                pred.values.forEach { SqlSecurity.validateValue(it) }
                 params.addAll(pred.values)
             }
             is TablePredicate.NotIn -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" NOT IN (${pred.values.joinToString(",") { "?" }})")
+                sql.append("${pred.column.safeRef()} NOT IN (${pred.values.joinToString(",") { "?" }})")
+                pred.values.forEach { SqlSecurity.validateValue(it) }
                 params.addAll(pred.values)
             }
-            is TablePredicate.IsNull -> sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IS NULL")
-            is TablePredicate.IsNotNull -> sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IS NOT NULL")
+            is TablePredicate.IsNull -> sql.append("${pred.column.safeRef()} IS NULL")
+            is TablePredicate.IsNotNull -> sql.append("${pred.column.safeRef()} IS NOT NULL")
             is TablePredicate.Like -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" LIKE ?")
+                sql.append("${pred.column.safeRef()} LIKE ?")
+                SqlSecurity.validateLikePattern(pred.pattern)
                 params.add(pred.pattern)
             }
             is TablePredicate.Between -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" BETWEEN ? AND ?")
+                sql.append("${pred.column.safeRef()} BETWEEN ? AND ?")
+                SqlSecurity.validateValue(pred.lower)
+                SqlSecurity.validateValue(pred.upper)
                 params.add(pred.lower)
                 params.add(pred.upper)
             }
@@ -766,7 +872,7 @@ class TableDeleteBuilder(private val table: Table) {
         val sql = StringBuilder()
         val params = mutableListOf<Any?>()
 
-        sql.append("DELETE FROM \"${table.tableName}\"")
+        sql.append("DELETE FROM ${safeQuote(table.tableName, "table name")}")
 
         if (predicate != null) {
             sql.append(" WHERE ")
@@ -775,7 +881,7 @@ class TableDeleteBuilder(private val table: Table) {
 
         if (returningColumns.isNotEmpty()) {
             sql.append(" RETURNING ")
-            sql.append(returningColumns.joinToString(", ") { "\"${it.name}\"" })
+            sql.append(returningColumns.joinToString(", ") { safeQuote(it.name, "column name") })
         }
 
         return RenderedSql(sql.toString(), params)
@@ -822,28 +928,34 @@ class TableDeleteBuilder(private val table: Table) {
     private fun appendPredicate(sql: StringBuilder, params: MutableList<Any?>, pred: TablePredicate) {
         when (pred) {
             is TablePredicate.Comparison -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" ${pred.operator} ?")
+                sql.append("${pred.column.safeRef()} ${pred.operator} ?")
+                SqlSecurity.validateValue(pred.value)
                 params.add(pred.value)
             }
             is TablePredicate.ColumnComparison -> {
-                sql.append("\"${pred.left.tableName}\".\"${pred.left.name}\" ${pred.operator} \"${pred.right.tableName}\".\"${pred.right.name}\"")
+                sql.append("${pred.left.safeRef()} ${pred.operator} ${pred.right.safeRef()}")
             }
             is TablePredicate.In -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IN (${pred.values.joinToString(",") { "?" }})")
+                sql.append("${pred.column.safeRef()} IN (${pred.values.joinToString(",") { "?" }})")
+                pred.values.forEach { SqlSecurity.validateValue(it) }
                 params.addAll(pred.values)
             }
             is TablePredicate.NotIn -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" NOT IN (${pred.values.joinToString(",") { "?" }})")
+                sql.append("${pred.column.safeRef()} NOT IN (${pred.values.joinToString(",") { "?" }})")
+                pred.values.forEach { SqlSecurity.validateValue(it) }
                 params.addAll(pred.values)
             }
-            is TablePredicate.IsNull -> sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IS NULL")
-            is TablePredicate.IsNotNull -> sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" IS NOT NULL")
+            is TablePredicate.IsNull -> sql.append("${pred.column.safeRef()} IS NULL")
+            is TablePredicate.IsNotNull -> sql.append("${pred.column.safeRef()} IS NOT NULL")
             is TablePredicate.Like -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" LIKE ?")
+                sql.append("${pred.column.safeRef()} LIKE ?")
+                SqlSecurity.validateLikePattern(pred.pattern)
                 params.add(pred.pattern)
             }
             is TablePredicate.Between -> {
-                sql.append("\"${pred.column.tableName}\".\"${pred.column.name}\" BETWEEN ? AND ?")
+                sql.append("${pred.column.safeRef()} BETWEEN ? AND ?")
+                SqlSecurity.validateValue(pred.lower)
+                SqlSecurity.validateValue(pred.upper)
                 params.add(pred.lower)
                 params.add(pred.upper)
             }

@@ -1,5 +1,8 @@
 package com.aggitech.orm.migrations.generator
 
+import com.aggitech.orm.config.AggoPropertiesLoader
+import com.aggitech.orm.config.MirrorConfig
+import com.aggitech.orm.jdbc.JdbcConnectionManager
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.sql.Connection
@@ -11,7 +14,36 @@ import java.sql.DriverManager
  * Mirrors are Kotlin objects that extend Table and provide type-safe column
  * references for queries, inserts, updates, and deletes.
  *
- * Usage via Gradle task:
+ * ## Automatic Configuration (Recommended)
+ *
+ * Simply configure in your `application.yml` or `application.properties`:
+ *
+ * ```yaml
+ * aggo:
+ *   orm:
+ *     database: mydb
+ *     host: localhost
+ *     username: user
+ *     password: pass
+ *     mirrors:
+ *       base-package: com.myapp.generated.mirrors
+ *       output-dir: src/main/kotlin
+ *       schema-name: public
+ * ```
+ *
+ * Then run without arguments:
+ * ```bash
+ * ./gradlew generateMirrors
+ * ```
+ *
+ * Or programmatically:
+ * ```kotlin
+ * MirrorGeneratorCli.generate()  // Uses configuration from application.yml
+ * ```
+ *
+ * ## Manual Configuration
+ *
+ * You can also pass parameters explicitly:
  * ```bash
  * ./gradlew generateMirrors \
  *     -PjdbcUrl=jdbc:postgresql://localhost:5432/mydb \
@@ -20,22 +52,56 @@ import java.sql.DriverManager
  *     -PbasePackage=com.myapp.generated \
  *     -PoutputDir=src/main/kotlin/com/myapp/generated
  * ```
- *
- * Or programmatically:
- * ```kotlin
- * MirrorGeneratorCli.generate(
- *     jdbcUrl = "jdbc:postgresql://localhost:5432/mydb",
- *     username = "postgres",
- *     password = "secret",
- *     basePackage = "com.myapp.generated",
- *     outputDir = "src/main/kotlin/com/myapp/generated"
- * )
- * ```
  */
 object MirrorGeneratorCli {
 
     /**
-     * Generates Mirror files from database schema.
+     * Generates Mirror files using automatic configuration from application.yml/properties.
+     *
+     * Configuration is loaded from:
+     * 1. application.yml / application.yaml
+     * 2. application.properties
+     * 3. Environment variables
+     * 4. System properties
+     *
+     * @return List of generated Mirror files
+     * @throws IllegalStateException if database configuration is not found
+     */
+    fun generate(): List<GeneratedMirror> {
+        // Carrega configuração automaticamente
+        val fullConfig = AggoPropertiesLoader.loadFullConfigFromClasspath()
+            ?: throw IllegalStateException(
+                "Database configuration not found. " +
+                "Please configure aggo.orm.* properties in application.yml or application.properties"
+            )
+
+        val dbConfig = fullConfig.dbConfig
+        val mirrorConfig = fullConfig.mirrorConfig
+
+        println("Using configuration from application.yml/properties:")
+        println("  Database: ${dbConfig.database}@${dbConfig.host}:${dbConfig.port}")
+        println("  Mirror package: ${mirrorConfig.basePackage}")
+        println("  Output directory: ${mirrorConfig.outputDir}")
+        println("  Schema: ${mirrorConfig.schemaName}")
+        println()
+
+        // Usa o JdbcConnectionManager para obter conexão
+        if (!JdbcConnectionManager.isInitialized()) {
+            JdbcConnectionManager.register("default", dbConfig)
+        }
+
+        return JdbcConnectionManager.withConnection { connection ->
+            generate(
+                connection = connection,
+                basePackage = mirrorConfig.basePackage,
+                outputDir = mirrorConfig.outputDir,
+                schemaName = mirrorConfig.schemaName
+            )
+        }
+    }
+
+    /**
+     * Generates Mirror files from database schema with explicit parameters.
      *
      * @param jdbcUrl JDBC connection URL
      * @param username Database username
@@ -82,7 +148,7 @@ object MirrorGeneratorCli {
         outputDir: String,
         schemaName: String = "public"
     ): List<GeneratedMirror> {
-        val outputPath = Paths.get(outputDir)
+        val outputPath = resolveOutputPath(basePackage, outputDir)
 
         println("Introspecting schema '$schemaName'...")
         val introspector = SchemaIntrospector(connection)
@@ -111,37 +177,63 @@ object MirrorGeneratorCli {
     }
 
     /**
+     * Resolves the full output path including package directory structure.
+     */
+    private fun resolveOutputPath(basePackage: String, outputDir: String): Path {
+        val basePath = Paths.get(outputDir)
+        val packagePath = basePackage.replace('.', '/')
+        return basePath.resolve(packagePath)
+    }
+
+    /**
      * Main entry point for CLI execution.
-     * Reads configuration from system properties or environment variables.
+     *
+     * First tries to load configuration from application.yml/properties.
+     * Falls back to system properties and environment variables if not found.
      */
     @JvmStatic
     fun main(args: Array<String>) {
-        val jdbcUrl = getConfig("jdbcUrl", "AGGO_JDBC_URL")
-            ?: error("Missing required config: jdbcUrl (or env AGGO_JDBC_URL)")
+        // Tenta carregar configuração automaticamente primeiro
+        val fullConfig = AggoPropertiesLoader.loadFullConfigFromClasspath()
 
-        val username = getConfig("jdbcUser", "AGGO_JDBC_USER")
-            ?: error("Missing required config: jdbcUser (or env AGGO_JDBC_USER)")
+        if (fullConfig != null) {
+            // Usa configuração automática
+            generate()
+        } else {
+            // Fallback: usa system properties / env vars
+            val jdbcUrl = getConfig("jdbcUrl", "AGGO_JDBC_URL")
+                ?: error(
+                    "Database configuration not found.\n" +
+                    "Please either:\n" +
+                    "  1. Configure aggo.orm.* properties in application.yml or application.properties\n" +
+                    "  2. Pass -PjdbcUrl=... -PjdbcUser=... -PjdbcPassword=... as Gradle properties\n" +
+                    "  3. Set AGGO_JDBC_URL, AGGO_JDBC_USER, AGGO_JDBC_PASSWORD environment variables"
+                )
 
-        val password = getConfig("jdbcPassword", "AGGO_JDBC_PASSWORD")
-            ?: error("Missing required config: jdbcPassword (or env AGGO_JDBC_PASSWORD)")
+            val username = getConfig("jdbcUser", "AGGO_JDBC_USER")
+                ?: error("Missing required config: jdbcUser (or env AGGO_JDBC_USER)")
 
-        val basePackage = getConfig("basePackage", "AGGO_BASE_PACKAGE")
-            ?: "generated"
+            val password = getConfig("jdbcPassword", "AGGO_JDBC_PASSWORD")
+                ?: error("Missing required config: jdbcPassword (or env AGGO_JDBC_PASSWORD)")
 
-        val outputDir = getConfig("outputDir", "AGGO_OUTPUT_DIR")
-            ?: "src/main/kotlin/generated"
+            val basePackage = getConfig("basePackage", "AGGO_BASE_PACKAGE")
+                ?: "generated.mirrors"
 
-        val schemaName = getConfig("schemaName", "AGGO_SCHEMA_NAME")
-            ?: "public"
+            val outputDir = getConfig("outputDir", "AGGO_OUTPUT_DIR")
+                ?: "src/main/kotlin"
 
-        generate(
-            jdbcUrl = jdbcUrl,
-            username = username,
-            password = password,
-            basePackage = basePackage,
-            outputDir = outputDir,
-            schemaName = schemaName
-        )
+            val schemaName = getConfig("schemaName", "AGGO_SCHEMA_NAME")
+                ?: "public"
+
+            generate(
+                jdbcUrl = jdbcUrl,
+                username = username,
+                password = password,
+                basePackage = basePackage,
+                outputDir = outputDir,
+                schemaName = schemaName
+            )
+        }
     }
 
     private fun getConfig(propertyName: String, envName: String): String? {

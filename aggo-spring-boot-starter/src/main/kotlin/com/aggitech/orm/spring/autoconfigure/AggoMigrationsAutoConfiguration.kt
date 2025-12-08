@@ -58,7 +58,10 @@ data class AggoMigrationsProperties(
 )
 
 /**
- * Properties para geração automática de TableMeta
+ * Properties para geração automática de TableMeta/Mirrors
+ *
+ * Note: These properties are also used by MirrorGeneratorCli when running
+ * from command line with Spring Boot configuration files.
  */
 data class TableMetaProperties(
     /**
@@ -67,9 +70,9 @@ data class TableMetaProperties(
     var enabled: Boolean = false,
 
     /**
-     * Pacote para os arquivos gerados (ex: "com.myapp.generated.tables")
+     * Pacote para os arquivos gerados (ex: "com.myapp.generated.mirrors")
      */
-    var basePackage: String = "generated.tables",
+    var basePackage: String = "generated.mirrors",
 
     /**
      * Diretório de saída para os arquivos gerados (ex: "src/main/kotlin")

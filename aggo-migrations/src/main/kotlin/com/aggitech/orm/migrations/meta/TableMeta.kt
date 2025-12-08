@@ -1,12 +1,15 @@
 package com.aggitech.orm.migrations.meta
 
 import com.aggitech.orm.migrations.dsl.ColumnType
+import com.aggitech.orm.table.Table
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 
 /**
  * Classe base para metadados de tabela gerados.
  * Cada tabela e um object singleton com suas colunas.
+ *
+ * Estende [Table] para compatibilidade com as funções de query DSL.
  *
  * Exemplo de TableMeta gerado:
  * ```kotlin
@@ -16,6 +19,36 @@ import kotlin.reflect.full.memberProperties
  *     val EMAIL = varchar("email", 255).notNull().unique()
  *     val CREATED_AT = timestamp("created_at").notNull().default("CURRENT_TIMESTAMP")
  * }
+ * ```
+ *
+ * Uso em queries:
+ * ```kotlin
+ * import com.aggitech.orm.table.select
+ * import com.aggitech.orm.table.insert
+ * import com.aggitech.orm.table.update
+ * import com.aggitech.orm.table.delete
+ *
+ * // SELECT
+ * select(UsersTable) {
+ *     UsersTable.NAME eq "John"
+ * }.executeAs<User>()
+ *
+ * // INSERT
+ * insert(UsersTable) {
+ *     UsersTable.NAME to "John"
+ *     UsersTable.EMAIL to "john@example.com"
+ * }.execute()
+ *
+ * // UPDATE
+ * update(UsersTable) {
+ *     UsersTable.NAME to "Jane"
+ *     where { UsersTable.ID eq userId }
+ * }.execute()
+ *
+ * // DELETE
+ * delete(UsersTable) {
+ *     UsersTable.ID eq userId
+ * }.execute()
  * ```
  *
  * Uso em migrations:
@@ -30,14 +63,14 @@ import kotlin.reflect.full.memberProperties
  * ```
  */
 abstract class TableMeta(
-    val tableName: String,
-    val schema: String = "public"
-) {
+    tableName: String,
+    schema: String = "public"
+) : Table(tableName, schema) {
     /**
-     * Lista de todas as colunas da tabela.
+     * Lista de todas as colunas da tabela como ColumnMeta.
      * Usa reflection para encontrar todas as propriedades do tipo ColumnMeta.
      */
-    val columns: List<ColumnMeta> by lazy {
+    val columnsMeta: List<ColumnMeta> by lazy {
         this::class.memberProperties
             .filter { it.returnType.classifier == ColumnMeta::class }
             .mapNotNull { prop ->
@@ -49,78 +82,79 @@ abstract class TableMeta(
 
     // ==================== Helpers para tipos comuns ====================
     // Esses metodos criam ColumnMeta que serao automaticamente descobertos via reflection
+    // Override dos métodos de Table para retornar ColumnMeta
 
-    fun uuid(name: String): ColumnMeta =
+    override fun uuid(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Uuid)
 
-    fun varchar(name: String, length: Int = 255): ColumnMeta =
+    override fun varchar(name: String, length: Int): ColumnMeta =
         ColumnMeta(name, ColumnType.Varchar(length))
 
-    fun char(name: String, length: Int): ColumnMeta =
+    override fun char(name: String, length: Int): ColumnMeta =
         ColumnMeta(name, ColumnType.Char(length))
 
-    fun text(name: String): ColumnMeta =
+    override fun text(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Text)
 
-    fun integer(name: String): ColumnMeta =
+    override fun integer(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Integer)
 
-    fun bigint(name: String): ColumnMeta =
+    override fun bigint(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.BigInteger)
 
-    fun smallint(name: String): ColumnMeta =
+    override fun smallint(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.SmallInteger)
 
-    fun boolean(name: String): ColumnMeta =
+    override fun boolean(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Boolean)
 
-    fun timestamp(name: String): ColumnMeta =
+    override fun timestamp(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Timestamp)
 
-    fun date(name: String): ColumnMeta =
+    override fun date(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Date)
 
-    fun time(name: String): ColumnMeta =
+    override fun time(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Time)
 
-    fun decimal(name: String, precision: Int, scale: Int): ColumnMeta =
+    override fun decimal(name: String, precision: Int, scale: Int): ColumnMeta =
         ColumnMeta(name, ColumnType.Decimal(precision, scale))
 
-    fun float(name: String): ColumnMeta =
+    override fun float(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Float)
 
-    fun double(name: String): ColumnMeta =
+    override fun double(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Double)
 
-    fun binary(name: String, length: Int? = null): ColumnMeta =
+    override fun binary(name: String, length: Int?): ColumnMeta =
         ColumnMeta(name, ColumnType.Binary(length))
 
-    fun blob(name: String): ColumnMeta =
+    override fun blob(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Blob)
 
-    fun json(name: String): ColumnMeta =
+    override fun json(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Json)
 
-    fun jsonb(name: String): ColumnMeta =
+    override fun jsonb(name: String): ColumnMeta =
         ColumnMeta(name, ColumnType.Jsonb)
 
     /**
      * Encontra uma coluna pelo nome
      */
-    fun findColumn(name: String): ColumnMeta? =
-        columns.find { it.name == name }
+    fun findColumnMeta(name: String): ColumnMeta? =
+        columnsMeta.find { it.name == name }
 
     /**
      * Retorna a coluna primary key (ou null se nao houver)
      */
-    fun primaryKeyColumn(): ColumnMeta? =
-        columns.find { it.primaryKey }
+    fun primaryKeyColumnMeta(): ColumnMeta? =
+        columnsMeta.find { it.primaryKey }
 
     /**
      * Retorna todas as colunas que sao foreign keys
      */
     fun foreignKeyColumns(): List<ColumnMeta> =
-        columns.filter { it.references != null }
+        columnsMeta.filter { it.references != null }
 
-    override fun toString(): String = "TableMeta($tableName, columns=${columns.map { it.name }})"
+    override fun toString(): String = "TableMeta($tableName, columns=${columnsMeta.map { it.name }})"
 }

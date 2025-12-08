@@ -423,7 +423,7 @@ class AggORMCreateTableBuilder(
      * Adiciona todas as colunas da TableMeta
      */
     fun allColumns() {
-        tableMeta.columns.forEach { column(it) }
+        tableMeta.columnsMeta.forEach { column(it) }
     }
 
     fun build(): MigrationOperation.CreateTable {

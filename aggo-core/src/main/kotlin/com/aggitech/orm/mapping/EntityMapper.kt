@@ -7,10 +7,32 @@ import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.jvmErasure
 
 /**
- * Mapeador de resultados de queries para entidades/DTOs
+ * Mapeador de resultados de queries para entidades/DTOs/Projections
  *
  * Usa reflexão para mapear Map<String, Any?> para instâncias de classes.
  * Leve e sem dependências de frameworks.
+ *
+ * Suporta:
+ * - Data classes (entidades)
+ * - Classes simples com construtor primário (DTOs)
+ * - Interfaces (via Proxy dinâmico)
+ *
+ * Exemplos:
+ * ```kotlin
+ * // Data class
+ * data class User(val id: UUID, val name: String, val email: String)
+ * val user: User = EntityMapper.map(row, User::class)
+ *
+ * // DTO/Projection com subset de campos
+ * data class UserSummary(val id: UUID, val name: String)
+ * val summary: UserSummary = EntityMapper.map(row, UserSummary::class)
+ *
+ * // Interface projection
+ * interface UserNameOnly {
+ *     val name: String
+ * }
+ * val nameOnly: UserNameOnly = EntityMapper.mapToInterface(row, UserNameOnly::class)
+ * ```
  */
 object EntityMapper {
 
@@ -25,7 +47,7 @@ object EntityMapper {
     }
 
     /**
-     * Mapeia um Map para uma instância de entidade
+     * Mapeia um Map para uma instância de entidade ou DTO
      *
      * Uso:
      * ```kotlin
@@ -34,10 +56,15 @@ object EntityMapper {
      * ```
      *
      * @param row Mapa de coluna -> valor
-     * @param entityClass Classe da entidade
-     * @return Instância da entidade preenchida
+     * @param entityClass Classe da entidade/DTO
+     * @return Instância preenchida
      */
     fun <T : Any> map(row: Map<String, Any?>, entityClass: KClass<T>): T {
+        // Se é uma interface, usa mapToInterface
+        if (entityClass.java.isInterface) {
+            return mapToInterface(row, entityClass)
+        }
+
         val constructor = entityClass.primaryConstructor
             ?: throw IllegalArgumentException(
                 "Class ${entityClass.simpleName} must have a primary constructor"
@@ -65,6 +92,59 @@ object EntityMapper {
         }
 
         return constructor.callBy(args)
+    }
+
+    /**
+     * Mapeia um Map para uma interface usando Proxy dinâmico.
+     *
+     * Útil para projections onde você só precisa de alguns campos.
+     *
+     * Uso:
+     * ```kotlin
+     * interface UserNameOnly {
+     *     val name: String
+     *     val email: String?
+     * }
+     *
+     * val projection: UserNameOnly = EntityMapper.mapToInterface(row, UserNameOnly::class)
+     * println(projection.name)  // "John"
+     * ```
+     *
+     * @param row Mapa de coluna -> valor
+     * @param interfaceClass Interface de projection
+     * @return Proxy que implementa a interface
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun <T : Any> mapToInterface(row: Map<String, Any?>, interfaceClass: KClass<T>): T {
+        require(interfaceClass.java.isInterface) {
+            "${interfaceClass.simpleName} must be an interface"
+        }
+
+        val handler = java.lang.reflect.InvocationHandler { _, method, _ ->
+            val methodName = method.name
+
+            // Suporta getters no estilo getXxx() ou isXxx()
+            val propertyName = when {
+                methodName.startsWith("get") && methodName.length > 3 ->
+                    methodName.substring(3).replaceFirstChar { it.lowercase() }
+                methodName.startsWith("is") && methodName.length > 2 ->
+                    methodName.substring(2).replaceFirstChar { it.lowercase() }
+                else -> methodName
+            }
+
+            val columnName = propertyName.toSnakeCase()
+            val value = row[columnName] ?: row[propertyName]
+
+            // Converte para o tipo de retorno esperado
+            val returnType = method.returnType.kotlin
+            convertValue(value, returnType)
+        }
+
+        return java.lang.reflect.Proxy.newProxyInstance(
+            interfaceClass.java.classLoader,
+            arrayOf(interfaceClass.java),
+            handler
+        ) as T
     }
 
     /**

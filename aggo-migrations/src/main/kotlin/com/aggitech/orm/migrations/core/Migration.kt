@@ -217,7 +217,7 @@ abstract class Migration {
      * ```
      */
     protected fun createTable(tableMeta: TableMeta) {
-        val columns = tableMeta.columns.map { col ->
+        val columns = tableMeta.columnsMeta.map { col ->
             ColumnDefinition(
                 name = col.name,
                 type = col.type,
@@ -229,7 +229,7 @@ abstract class Migration {
             )
         }
 
-        val primaryKeys = tableMeta.columns.filter { it.primaryKey }.map { it.name }
+        val primaryKeys = tableMeta.columnsMeta.filter { it.primaryKey }.map { it.name }
 
         val foreignKeys = tableMeta.foreignKeyColumns().mapNotNull { col ->
             col.references?.let { ref ->

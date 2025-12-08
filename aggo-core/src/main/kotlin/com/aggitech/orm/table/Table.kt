@@ -55,71 +55,73 @@ abstract class Table(
     }
 
     // ==================== Column type helpers ====================
+    // Note: These methods return ColumnRef to allow subclasses (like TableMeta)
+    // to override with different column types (like ColumnMeta)
 
-    protected fun uuid(name: String): Column =
+    protected open fun uuid(name: String): ColumnRef =
         Column(name, tableName, ColumnType.UUID)
 
-    protected fun varchar(name: String, length: Int = 255): Column =
+    protected open fun varchar(name: String, length: Int = 255): ColumnRef =
         Column(name, tableName, ColumnType.VARCHAR)
 
-    protected fun char(name: String, length: Int): Column =
+    protected open fun char(name: String, length: Int): ColumnRef =
         Column(name, tableName, ColumnType.CHAR)
 
-    protected fun text(name: String): Column =
+    protected open fun text(name: String): ColumnRef =
         Column(name, tableName, ColumnType.TEXT)
 
-    protected fun integer(name: String): Column =
+    protected open fun integer(name: String): ColumnRef =
         Column(name, tableName, ColumnType.INTEGER)
 
-    protected fun bigint(name: String): Column =
+    protected open fun bigint(name: String): ColumnRef =
         Column(name, tableName, ColumnType.BIGINT)
 
-    protected fun smallint(name: String): Column =
+    protected open fun smallint(name: String): ColumnRef =
         Column(name, tableName, ColumnType.SMALLINT)
 
-    protected fun boolean(name: String): Column =
+    protected open fun boolean(name: String): ColumnRef =
         Column(name, tableName, ColumnType.BOOLEAN)
 
-    protected fun timestamp(name: String): Column =
+    protected open fun timestamp(name: String): ColumnRef =
         Column(name, tableName, ColumnType.TIMESTAMP)
 
-    protected fun timestamptz(name: String): Column =
+    protected open fun timestamptz(name: String): ColumnRef =
         Column(name, tableName, ColumnType.TIMESTAMPTZ)
 
-    protected fun date(name: String): Column =
+    protected open fun date(name: String): ColumnRef =
         Column(name, tableName, ColumnType.DATE)
 
-    protected fun time(name: String): Column =
+    protected open fun time(name: String): ColumnRef =
         Column(name, tableName, ColumnType.TIME)
 
-    protected fun decimal(name: String, precision: Int = 10, scale: Int = 2): Column =
+    protected open fun decimal(name: String, precision: Int = 10, scale: Int = 2): ColumnRef =
         Column(name, tableName, ColumnType.DECIMAL)
 
-    protected fun numeric(name: String, precision: Int = 10, scale: Int = 2): Column =
+    protected open fun numeric(name: String, precision: Int = 10, scale: Int = 2): ColumnRef =
         Column(name, tableName, ColumnType.DECIMAL)
 
-    protected fun float(name: String): Column =
+    protected open fun float(name: String): ColumnRef =
         Column(name, tableName, ColumnType.FLOAT)
 
-    protected fun double(name: String): Column =
+    protected open fun double(name: String): ColumnRef =
         Column(name, tableName, ColumnType.DOUBLE)
 
-    protected fun binary(name: String, length: Int? = null): Column =
+    protected open fun binary(name: String, length: Int? = null): ColumnRef =
         Column(name, tableName, ColumnType.BINARY)
 
-    protected fun blob(name: String): Column =
+    protected open fun blob(name: String): ColumnRef =
         Column(name, tableName, ColumnType.BLOB)
 
-    protected fun json(name: String): Column =
+    protected open fun json(name: String): ColumnRef =
         Column(name, tableName, ColumnType.JSON)
 
-    protected fun jsonb(name: String): Column =
+    protected open fun jsonb(name: String): ColumnRef =
         Column(name, tableName, ColumnType.JSONB)
 
-    protected fun serial(name: String): Column =
+    protected open fun serial(name: String): ColumnRef =
         Column(name, tableName, ColumnType.SERIAL)
 
-    protected fun bigserial(name: String): Column =
+    protected open fun bigserial(name: String): ColumnRef =
         Column(name, tableName, ColumnType.BIGSERIAL)
 
     /**
